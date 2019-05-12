@@ -11,15 +11,23 @@ import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-lan
 let statusBarItem: StatusBarItem;
 
 export function activate(context: ExtensionContext) {
-    const executable = workspace.getConfiguration("pyls").get<string>("executable");
+	const executable = workspace.getConfiguration("mypy").get<string | null>("executable");
+	if (executable == null) {
+		window.showInformationMessage(
+			'Please specify mypy language server executable in settings (mypy.executable) and reload.');
+		return;
+	}
 	const serverOptions: ServerOptions = {
-        command: executable || 'pyls',
+        command: executable,
         args: ['-v'],
 	};
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: ['python'],
+		documentSelector: [{
+			language: 'python',
+			scheme: 'file'
+		}],
         synchronize: {
-            configurationSection: 'pyls'
+            configurationSection: 'mypy'
         }
 	}
 	const client = new LanguageClient('pyls', serverOptions, clientOptions);
@@ -38,6 +46,9 @@ export function activate(context: ExtensionContext) {
 				statusBarItem.hide();
 			}
 		});
-	})
+	}).catch(reason => {
+		window.showErrorMessage(
+			`Couldn't launch mypy language server executable: ${reason}`);
+	});
 }
 
