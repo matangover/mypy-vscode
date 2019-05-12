@@ -1,19 +1,22 @@
 {
-    "name": "pyls",
-    "description": "Python language server",
-    "author": "Sourcegraph",
-    "repository": "https://github.com/Microsoft/vscode-languageserver-node",
+    "name": "mypy",
+    "description": "Type checking and rich language features for Python using mypy.",
+    "author": "Matan Gover",
+    "repository": "https://github.com/matangover/mypy-language-server",
     "license": "MIT",
     "version": "0.0.1",
-    "publisher": "sqs",
+    "publisher": "matangover",
     "engines": {
         "vscode": "^1.15.0"
     },
     "categories": [
+        "Programming Languages",
+        "Linters",
         "Other"
     ],
     "activationEvents": [
-        "*"
+        "onLanguage:python",
+        "workspaceContains:**/*.py"
     ],
     "contributes": {
         "configuration": {
