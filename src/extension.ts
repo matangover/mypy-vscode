@@ -30,7 +30,7 @@ export function activate(context: ExtensionContext) {
             configurationSection: 'mypy'
         }
 	}
-	const client = new LanguageClient('pyls', serverOptions, clientOptions);
+	const client = new LanguageClient('mypy', serverOptions, clientOptions);
 
 	context.subscriptions.push(client.start());
 
@@ -38,7 +38,7 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(statusBarItem);
 	
 	client.onReady().then(() => {
-		client.onNotification('pyls/reportProgress', (message: string | null) => {
+		client.onNotification('mypyls/reportProgress', (message: string | null) => {
 			if (message) {
 				statusBarItem.text = message;
 				statusBarItem.show();

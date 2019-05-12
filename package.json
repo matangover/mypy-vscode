@@ -26,7 +26,7 @@
                 "mypy.executable": {
                     "type": ["string", "null"],
                     "default": null,
-                    "description": "Mypy language server executable"
+                    "description": "Path to mypyls executable (see installation instructions)."
                 },
                 "mypy.configFile": {
                     "type": ["string", "null"],
