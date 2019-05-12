@@ -250,9 +250,18 @@
                     "description": "The name of the folder in which rope stores project configurations and data.  Pass `null` for not using such a folder at all."
                 },
                 "pyls.plugins.mypy.configFile": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "default": null,
                     "description": "Mypy config file, relative to the workspace folder. Set to null (the default) to search in the default locations."
+                },
+                "pyls.plugins.mypy.targets": {
+                    "type": "array",
+                    "default": ["."],
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true,
+                    "description": "List of paths to type check, relative to the workspace folder. The default is to check the workspace folder."
                 }
             }
         }
