@@ -17,7 +17,7 @@ export function activate(context: ExtensionContext) {
 	executable = untildify(executable);
 	if (!fs.existsSync(executable)) {
 		window.showWarningMessage(
-			'mypyls not found. Please install mypyls and reload. See installation instructions. ' +
+			'mypyls not found. Please install mypyls and reload. See extension installation instructions. ' +
 			`Looked for mypyls at: ${executable}`);
 		return;
 	}
