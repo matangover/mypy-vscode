@@ -2,7 +2,7 @@
     "name": "mypy",
     "description": "Type checking and rich language features for Python using mypy.",
     "author": "Matan Gover",
-    "repository": "https://github.com/matangover/mypy-language-server",
+    "repository": "https://github.com/matangover/mypy-vscode",
     "license": "MIT",
     "version": "0.0.1",
     "publisher": "matangover",

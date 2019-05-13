@@ -11,7 +11,7 @@ Requires Python 3.5 or later.
 
     ```shell
     $ python -m venv ~/.mypyls
-    $ ~/.mypyls/bin/pip install mypyls
+    $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
     ```
 
 2. Install the mypy extension in VS Code.
@@ -24,17 +24,13 @@ These features require Python 3.8 (currently in pre-release) and a patched versi
 2. Create a Python 3.8 virtualenv and install the mypy language server in it:
     ```shell
     $ python3.8 -m venv ~/.mypyls
-    $ ~/.mypyls/bin/pip install mypyls
+    $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[patched-mypy]"
     ```
-3. Install the patched version of mypy in the virtualenv:
-    ```shell
-    $ ~/.mypyls/bin/pip install git+https://github.com/matangover/mypy
-    ```
-4. Install the mypy extension in VS Code.
+3. Install the mypy extension in VS Code.
 
 ### Installation in non-default location
 
-If you installed the mypy language server in a location other than ``~/.mypyls/bin/mypyls``, specify that location in your user settings in VS Code (``mypy.executable``).
+If you installed the mypy language server in a location other than `~/.mypyls/bin/mypyls`, specify that location in your user settings in VS Code (`mypy.executable`).
 
 ## Configuration
 
