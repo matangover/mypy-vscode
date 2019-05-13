@@ -20,27 +20,29 @@
     ],
     "contributes": {
         "configuration": {
-            "title": "Mypy extension configuration",
+            "title": "Mypy",
             "type": "object",
             "properties": {
                 "mypy.executable": {
-                    "type": ["string", "null"],
-                    "default": null,
+                    "type": "string",
+                    "default": "~/.mypyls/bin/mypyls",
                     "description": "Path to mypyls executable (see installation instructions)."
                 },
                 "mypy.configFile": {
-                    "type": ["string", "null"],
-                    "default": null,
-                    "description": "Mypy config file, relative to the workspace folder. Set to null (the default) to search in the default locations."
+                    "type": "string",
+                    "default": "",
+                    "description": "Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html."
                 },
                 "mypy.targets": {
                     "type": "array",
-                    "default": ["."],
+                    "default": [
+                        "."
+                    ],
                     "items": {
                         "type": "string"
                     },
                     "uniqueItems": true,
-                    "description": "List of paths to type check, relative to the workspace folder. The default is to check the workspace folder."
+                    "description": "List of paths to analyze, relative to the workspace folder. By default, check the entire workspace folder."
                 }
             }
         }
@@ -53,13 +55,14 @@
         "vscode": "npm run vscode:prepublish && VSCODE=$(which code-insiders || which code || echo echo ERROR: neither the code nor code-insiders vscode executable is installed); USER=dummy-dont-share-vscode-instance $VSCODE --user-data-dir=$PWD/.vscode-dev/user-data --extensionHomePath=$PWD/.vscode-dev/extensions --extensionDevelopmentPath=$PWD $*"
     },
     "devDependencies": {
-        "typescript": "^2.3.4",
-        "vscode": "^1.1.4",
-        "mocha": "^2.3.3",
+        "@types/mocha": "^2.2.32",
         "@types/node": "^6.0.40",
-        "@types/mocha": "^2.2.32"
+        "mocha": "^2.3.3",
+        "typescript": "^2.3.4",
+        "vscode": "^1.1.4"
     },
     "dependencies": {
+        "untildify": "^4.0.0",
         "vscode-languageclient": "^3.4.5"
     }
 }

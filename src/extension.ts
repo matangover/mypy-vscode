@@ -7,14 +7,18 @@
 
 import { workspace, ExtensionContext, StatusBarItem, window } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient';
+import * as fs from 'fs';
+import untildify = require('untildify');
 
 let statusBarItem: StatusBarItem;
 
 export function activate(context: ExtensionContext) {
-	const executable = workspace.getConfiguration("mypy").get<string | null>("executable");
-	if (executable == null) {
-		window.showInformationMessage(
-			'Please specify mypy language server executable in settings (mypy.executable) and reload.');
+	let executable = workspace.getConfiguration("mypy").get<string | null>("executable");
+	executable = untildify(executable);
+	if (!fs.existsSync(executable)) {
+		window.showWarningMessage(
+			'mypyls not found. Please install mypyls and reload. See installation instructions. ' +
+			`Looked for mypyls at: ${executable}`);
 		return;
 	}
 	const serverOptions: ServerOptions = {
