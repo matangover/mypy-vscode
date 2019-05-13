@@ -7,7 +7,7 @@
     "version": "0.0.1",
     "publisher": "matangover",
     "engines": {
-        "vscode": "^1.15.0"
+        "vscode": "^1.30.0"
     },
     "categories": [
         "Programming Languages",
@@ -59,7 +59,7 @@
         "@types/node": "^6.0.40",
         "mocha": "^2.3.3",
         "typescript": "^2.3.4",
-        "vscode": "^1.1.4"
+        "vscode": "^1.1.21"
     },
     "dependencies": {
         "untildify": "^4.0.0",
