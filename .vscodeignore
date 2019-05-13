@@ -3,6 +3,7 @@ typings/**
 out/test/**
 test/**
 src/**
+.vscode-dev/**
 **/*.map
 .gitignore
 tsconfig.json
