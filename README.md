@@ -1,34 +1,50 @@
-# vscode-client
+# Mypy extension for VS Code
+Runs mypy on Python code to provide type checking, go to definition, and hover.
 
-The vscode-client extension for Visual Studio Code helps you develop
-and debug language servers. It lets you run multiple language servers
-at once with minimal extra configuration per language.
+## Installation
 
-## Using this extension
+### Basic installation (type checking only)
 
-1. Follow the [Getting Started instructions for this project](../README.md)
-1. Run `npm install`.
-1. Run `npm run vscode` to start a new VSCode instance. Use `npm run vscode -- /path/to/mydir` to open the editor to a specific directory.
-1. Open a `.go` file and hover over text to start using the Go language server.
+Requires Python 3.5 or later.
 
-To view a language server's stderr output in VSCode, select View → Output.
-To debug further, see the "Hacking on this extension" section below.
+1. Create a virtualenv and install the mypy language server in it:
 
-After updating the binary for a language server (during development or after an upgrade), just kill the process (e.g., `killall langserver-go`).
-VSCode will automatically restart and reconnect to the language server process.
+    ```shell
+    $ python -m venv ~/.mypyls
+    $ ~/.mypyls/bin/pip install mypyls
+    ```
 
-> **Note for those who use VSCode as their primary editor:** Because this extension's functionality conflicts with other VSCode extensions
-(e.g., showing Go hover information), the `npm run vscode` script launches an separate instance of VSCode and stores its config in `../.vscode-dev`.
-It will still show your existing extensions in the panel (which seems to be a VSCode bug), but they won't be activated.
+2. Install the mypy extension in VS Code.
 
-## Adding a language server
+### Installation with hover and go to definition
 
-Register your language server at the bottom of [`extension.ts`](https://github.com/sourcegraph/langserver/blob/master/vscode-client/src/extension.ts).
+These features require Python 3.8 (currently in pre-release) and a patched version of mypy.
 
-## Hacking on this extension
+1. Install [Python 3.8 pre-release](https://www.python.org/download/pre-releases/) (you may choose to use [pyenv](https://github.com/pyenv/pyenv)).
+2. Create a Python 3.8 virtualenv and install the mypy language server in it:
+    ```shell
+    $ python3.8 -m venv ~/.mypyls
+    $ ~/.mypyls/bin/pip install mypyls
+    ```
+3. Install the patched version of mypy in the virtualenv:
+    ```shell
+    $ ~/.mypyls/bin/pip install git+https://github.com/matangover/mypy
+    ```
+4. Install the mypy extension in VS Code.
 
-1. Run `npm install` in this directory (`vscode-client`).
-1. Open this directory by itself in Visual Studio Code.
-1. Hit F5 to open a new VSCode instance in a debugger running this extension. (This is equivalent to going to the Debug pane on the left and running the "Launch Extension" task.)
+### Installation in non-default location
 
-See the [Node.js example language server tutorial](https://code.visualstudio.com/docs/extensions/example-language-server) under "To test the language server" for more information.
+If you installed the mypy language server in a location other than ``~/.mypyls/bin/mypyls``, specify that location in your user settings in VS Code (``mypy.executable``).
+
+## Configuration
+
+TBD
+
+## Development
+
+TBD
+
+## License
+
+This project is made available under the MIT License.
+The language server is based on Palantir's [python-language-server](https://github.com/palantir/python-language-server) and uses [mypy](https://github.com/python/mypy).
