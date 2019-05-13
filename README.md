@@ -14,7 +14,7 @@ Requires Python 3.5 or later.
     $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
     ```
 
-2. Install the mypy extension in VS Code.
+2. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
 
 ### Installation with hover and go to definition
 
@@ -26,7 +26,7 @@ These features require Python 3.8 (currently in pre-release) and a patched versi
     $ python3.8 -m venv ~/.mypyls
     $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[patched-mypy]"
     ```
-3. Install the mypy extension in VS Code.
+3. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
 
 ### Installation in non-default location
 
