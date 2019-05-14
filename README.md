@@ -13,7 +13,7 @@ This is an early alpha version, please report any bugs. See caveats below.
 
 ### Basic installation (type checking only)
 
-Requires Python 3.7 or later.
+Requires Python 3.7 or later. This is only required to run the language server – for your own code you can use any Python version.
 
 1. Create a virtualenv and install the mypy language server in it:
 
@@ -26,7 +26,7 @@ Requires Python 3.7 or later.
 
 ### Installation with hover and go to definition
 
-These features require Python 3.8 (currently in pre-release) and a patched version of mypy.
+These features require Python 3.8 (currently in pre-release) and a patched version of mypy. This is only required to run the language server – for your own code you can use any Python version.
 
 1. Install [Python 3.8 pre-release](https://www.python.org/download/pre-releases/) (you may choose to use [pyenv](https://github.com/pyenv/pyenv)).
 2. Create a Python 3.8 virtualenv and install the mypy language server in it:
