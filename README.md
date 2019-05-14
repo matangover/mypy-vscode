@@ -1,11 +1,19 @@
 # Mypy extension for VS Code
 Runs mypy on Python code to provide type checking, go to definition, and hover.
 
+* Runs on your entire workspace folder. (This is different from Microsoft's Python extension which only lints each file separately, leading to incomplete type checking.)
+
+* Embeds the [mypy daemon](https://mypy.readthedocs.io/en/latest/mypy_daemon.html) and keeps the analysis state in memory so that only changed files are rechecked.
+
+* Respects your `pythonPath` and `mypy.ini`. You may override the default configuration.
+
+This is an early alpha version, please report any bugs. See caveats below.
+
 ## Installation
 
 ### Basic installation (type checking only)
 
-Requires Python 3.5 or later.
+Requires Python 3.7 or later.
 
 1. Create a virtualenv and install the mypy language server in it:
 
@@ -28,6 +36,8 @@ These features require Python 3.8 (currently in pre-release) and a patched versi
     ```
 3. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
 
+Note: using the patched mypy version will be slower because it is not currently compiled using mypyc.
+
 ### Installation in non-default location
 
 If you installed the mypy language server in a location other than `~/.mypyls/bin/mypyls`, specify that location in your user settings in VS Code (`mypy.executable`).
@@ -39,6 +49,19 @@ TBD
 ## Development
 
 TBD
+
+## Caveats
+
+* Uses mypy as a library - this is not supported by the mypy team. This means that future mypy updates may take time to integrate into this extension.
+* Tested on macOS only, but should be cross platform.
+* Tested on Python 3.7 and Python 3.8 alpha.
+* Cannot yet analyze unsaved files.
+* Mypy bails on first syntax error encountered.
+* When you make configuration changes you must reload the VS Code window.
+* Multi-root workspaces not supported for now.
+* Documentation is not displayed in hovers. This will probably not be fixed because mypy does not collect this information.
+* Hovers and go to definition work only on typechecked code. By default we set `check_untyped_defs` to True, so all code should be analyzed.
+* Mypy does not recurse into folders without an `__init__.py`, but you may specify sources manually.
 
 ## License
 
