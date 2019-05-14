@@ -4,7 +4,7 @@
     "author": "Matan Gover",
     "repository": "https://github.com/matangover/mypy-vscode",
     "license": "MIT",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "publisher": "matangover",
     "engines": {
         "vscode": "^1.30.0"
