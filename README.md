@@ -58,7 +58,7 @@ TBD
 * Cannot yet analyze unsaved files.
 * Mypy bails on first syntax error encountered.
 * When you make configuration changes you must reload the VS Code window.
-* Multi-root workspaces not supported for now.
+* Multi-root workspaces not supported for now. Only the first workspace folder is checked.
 * Documentation is not displayed in hovers. This will probably not be fixed because mypy does not collect this information.
 * Hovers and go to definition work only on typechecked code. By default we set `check_untyped_defs` to True, so all code should be analyzed.
 * Mypy does not recurse into folders without an `__init__.py`, but you may specify sources manually.
