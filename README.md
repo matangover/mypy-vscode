@@ -44,7 +44,9 @@ If you installed the mypy language server in a location other than `~/.mypyls/bi
 
 ## Configuration
 
-TBD
+The extension loads your `mypy.ini` configuration (if any) from the workspace folder or any of the default locations. See [mypy configuration file](https://mypy.readthedocs.io/en/latest/config_file.html). You can specify a custom path to `mypy.ini` using the `mypy.configFile` setting.
+
+Use the `mypy.targets` setting to specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. Note that mypy does not recurse into folders without an `__init__.py`.
 
 ## Development
 
@@ -61,7 +63,9 @@ TBD
 * Multi-root workspaces not supported for now. Only the first workspace folder is checked.
 * Documentation is not displayed in hovers. This will probably not be fixed because mypy does not collect this information.
 * Hovers and go to definition work only on typechecked code. By default we set `check_untyped_defs` to True, so all code should be analyzed.
-* Mypy does not recurse into folders without an `__init__.py`, but you may specify sources manually.
+
+## Mypy Language Server
+The interesting bits of this extension are actually implemented in the [Mypy Language Server](https://github.com/matangover/mypyls/).
 
 ## License
 
