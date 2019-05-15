@@ -1,5 +1,6 @@
 {
     "name": "mypy",
+    "displayName": "Mypy",
     "description": "Type checking and rich language features for Python using mypy.",
     "author": "Matan Gover",
     "repository": "https://github.com/matangover/mypy-vscode",
