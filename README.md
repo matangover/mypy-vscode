@@ -1,7 +1,7 @@
 # Mypy extension for VS Code
 Runs mypy on Python code to provide type checking, go to definition, and hover.
 
-* Runs on your entire workspace folder. (This is different from Microsoft's Python extension which only lints each file separately, leading to incomplete type checking.)
+* Runs on your entire workspace folder. (This is different from Microsoft's Python extension's mypy functionality which only lints each file separately, leading to incomplete type checking.)
 
 * Embeds the [mypy daemon](https://mypy.readthedocs.io/en/latest/mypy_daemon.html) and keeps the analysis state in memory so that only changed files are rechecked.
 
