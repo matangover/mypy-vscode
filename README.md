@@ -1,5 +1,5 @@
 # Mypy extension for VS Code
-Runs mypy on Python code to provide type checking, go to definition, and hover.
+Runs mypy on Python code to provide type checking.
 
 * Runs on your entire workspace folder. (This is different from Microsoft's Python extension's mypy functionality which only lints each file separately, leading to incomplete type checking.)
 
@@ -7,40 +7,49 @@ Runs mypy on Python code to provide type checking, go to definition, and hover.
 
 * Respects your `pythonPath` and `mypy.ini`. You may override the default configuration.
 
-This is an early alpha version, please report any bugs. See caveats below.
+Please report any bugs. See caveats below.
 
 ## Installation
-
-### Basic installation (type checking only)
 
 Requires Python 3.7 or later. This is only required to run the language server – for your own code you can use any Python version.
 
 1. Create a virtualenv and install the mypy language server in it:
+
+   On macOS or Linux:
 
     ```shell
     $ python -m venv ~/.mypyls
     $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
     ```
 
-2. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
-
-### Installation with hover and go to definition
-
-These features require Python 3.8 (currently in pre-release) and a patched version of mypy. This is only required to run the language server – for your own code you can use any Python version.
-
-1. Install [Python 3.8 pre-release](https://www.python.org/download/pre-releases/) (you may choose to use [pyenv](https://github.com/pyenv/pyenv)).
-2. Create a Python 3.8 virtualenv and install the mypy language server in it:
+    On Windows:
+    
     ```shell
-    $ python3.8 -m venv ~/.mypyls
-    $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[patched-mypy]"
+    $ python -m venv %USERPROFILE%\.mypyls
+    $ %USERPROFILE%\.mypyls\Scripts\pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
     ```
-3. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
 
-Note: using the patched mypy version will be slower because it is not currently compiled using mypyc.
+2. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
 
 ### Installation in non-default location
 
-If you installed the mypy language server in a location other than `~/.mypyls/bin/mypyls`, specify that location in your user settings in VS Code (`mypy.executable`).
+If you installed the mypy language server in a location other than `~/.mypyls/bin/mypyls` (or `%USERPROFILE%\.mypyls\Scripts\mypyls.exe` on Windows), specify that location in your user settings in VS Code (`mypy.executable`).
+
+## Updating
+
+If you update the mypy-vscode extension, you may also need to update the mypy language server separately. Do so by running the following command (assuming you used the default installation paths given above).
+
+On macOS or Linux:
+
+```shell
+$ ~/.mypyls/bin/pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls"
+```
+
+On Windows:
+
+```shell
+$ %USERPROFILE%\.mypyls\Scripts\pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls"
+```
 
 ## Configuration
 
@@ -48,15 +57,35 @@ The extension loads your `mypy.ini` configuration (if any) from the workspace fo
 
 Use the `mypy.targets` setting to specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. Note that mypy does not recurse into folders without an `__init__.py`.
 
-## Development
+## Experimental: Installation with extra features
 
-TBD
+The plugin also provides experimental support for hover and go-to-definition features using mypy's code analysis engine. These features require Python 3.8 and a patched version of mypy. Python 3.8 is only required to run the language server – for your own code you can use any Python version.
+
+To try these features, use the following installation steps instead of the ones given above.
+
+1. Create a Python 3.8 virtualenv and install the mypy language server in it, with a patched version of mypy:
+
+   On macOS or Linux:
+
+    ```shell
+    $ python3.8 -m venv ~/.mypyls
+    $ ~/.mypyls/bin/pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[patched-mypy]"
+    ```
+
+   On Windows:
+   ```shell
+    $ python3.8 -m venv %USERPROFILE%\.mypyls
+    $ %USERPROFILE%\.mypyls\Scripts\pip install "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[patched-mypy]"
+    ```
+
+2. Install the mypy extension in VS Code (or reload the window if the extension is already installed).
+
 
 ## Caveats
 
 * Uses mypy as a library - this is not supported by the mypy team. This means that future mypy updates may take time to integrate into this extension.
 * Tested on macOS only, but should be cross platform.
-* Tested on Python 3.7 and Python 3.8 alpha.
+* Tested on Python 3.7 and Python 3.8.
 * Cannot yet analyze unsaved files.
 * Mypy bails on first syntax error encountered.
 * When you make configuration changes you must reload the VS Code window.
