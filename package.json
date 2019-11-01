@@ -26,8 +26,8 @@
             "properties": {
                 "mypy.executable": {
                     "type": "string",
-                    "default": "~/.mypyls/bin/mypyls",
-                    "description": "Path to mypyls executable (see extension installation instructions)."
+                    "default": "",
+                    "description": "Path to mypyls executable (see extension installation instructions). If left empty, the default path is used (for Unix: ~/.mypyls/bin/mypyls, for Windows: %USERPROFILE%\\.mypyls\\Scripts\\mypyls.exe)."
                 },
                 "mypy.configFile": {
                     "type": "string",

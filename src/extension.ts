@@ -13,8 +13,13 @@ import untildify = require('untildify');
 let statusBarItem: StatusBarItem;
 
 export function activate(context: ExtensionContext) {
-	let executable = workspace.getConfiguration("mypy").get<string | null>("executable");
-	executable = untildify(executable);
+	let executableSetting = workspace.getConfiguration("mypy").get<string>("executable");
+	if (executableSetting === '') {
+		executableSetting = (process.platform === "win32") ?
+			'~/.mypyls/Scripts/mypyls.exe' :
+			'~/.mypyls/bin/mypyls';
+	}
+	const executable = untildify(executableSetting);
 	if (!fs.existsSync(executable)) {
 		window.showWarningMessage(
 			'mypyls not found. Please install mypyls and reload. See extension installation instructions. ' +
