@@ -11,7 +11,7 @@ Please report any bugs. See caveats below.
 
 ## Installation
 
-Requires Python 3.7 or later. This is only required to run the language server – for your own code you can use any Python version.
+Python 3.7 or later must be installed to run the mypy language server (for your own code you can use any Python version).
 
 1. Create a virtualenv and install the mypy language server in it:
 
