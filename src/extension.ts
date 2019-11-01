@@ -16,7 +16,7 @@ export function activate(context: ExtensionContext) {
 	let executableSetting = workspace.getConfiguration("mypy").get<string>("executable");
 	if (executableSetting === '') {
 		executableSetting = (process.platform === "win32") ?
-			'~/.mypyls/Scripts/mypyls.exe' :
+			'~\\.mypyls\\Scripts\\mypyls.exe' :
 			'~/.mypyls/bin/mypyls';
 	}
 	const executable = untildify(executableSetting);
