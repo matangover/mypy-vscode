@@ -39,17 +39,22 @@ If you installed the mypy language server in a location other than `~/.mypyls/bi
 
 If you update the mypy-vscode extension, you may also need to update the mypy language server separately. Do so by running the following command (assuming you used the default installation paths given above).
 
-On macOS or Linux:
+ 1. Quit VS Code
+ 2. Update the mypy language server.
 
-```shell
-$ ~/.mypyls/bin/pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls"
-```
+    On macOS or Linux:
 
-On Windows:
+    ```shell
+    $ ~/.mypyls/bin/pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
+    ```
 
-```shell
-$ %USERPROFILE%\.mypyls\Scripts\pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls"
-```
+    On Windows:
+
+    ```shell
+    $ %USERPROFILE%\.mypyls\Scripts\pip install -U "https://github.com/matangover/mypyls/archive/master.zip#egg=mypyls[default-mypy]"
+    ```
+
+    If you get an error running the command ('The process cannot access the file because it is being used by another process'), wait a few seconds and try again.
 
 ## Configuration
 
