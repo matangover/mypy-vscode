@@ -13,6 +13,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	_context = context;
 	context.subscriptions.push(outputChannel);
 	
+	// TODO: migrate settings from previous version: mypyls -> dmypy 
+	//       e.g., if mypy.executable specified, use that s/mypyls$/dmypy/, otherwise try default locations or otherwise use system
+	//		 Migrate only the settings that currently applies (e.g. workspace setting).
+	//       
+	// TODO: save current version number in global state
+	// TODO: show popup if extension has been updated from mypyls
+	// TODO: log extension version and mypy version to output
+	// TODO: add setting to use active Python interpreter to run mypy
+
 	if (vscode.workspace.workspaceFolders) {
 		await Promise.all(vscode.workspace.workspaceFolders.map(folder => startDaemonAndCheckWorkspace(folder.uri)));
 	}
@@ -61,10 +70,13 @@ async function stopDaemon(folder: vscode.Uri): Promise<void> {
 
 async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?: number[]):
 		Promise<{success: boolean, stdout: string | null}> {
+	// TODO: get interpreter path using new API
 	const config = vscode.workspace.getConfiguration('python', folder);
 	const pythonPath = config.pythonPath || 'python';
-
+	// TODO: if python executable does not exist, write error.
+	// TODO: allow using global mypy installation using mypy.dmypyExecutable settings
 	try {
+		// TODO: specify Python executable if running from global mypy.
 		const result = await spawn(
 			pythonPath,
 			['-m', 'mypy.dmypy'].concat(args),
@@ -83,6 +95,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?
 			}
 			if (ex.stderr) {
 				outputChannel.appendLine(`stderr:\n${ex.stderr}`);
+				// TODO: if stderr contains `ModuleNotFoundError: No module named 'mypy'` then show error - mypy not installed
 			}
 		}
 		return {success: false, stdout: null};
@@ -100,6 +113,10 @@ function documentSaved(document: vscode.TextDocument): void {
 async function checkWorkspace(folder: vscode.Uri) {
 	// TODO: server can only process one request at a time.
 	outputChannel.appendLine(`Check workspace: ${folder.fsPath}`);
+	// TODO: 'check' can fail if server did not previously start (e.g. mypy was installed while VS Code was open)
+	// 		 Better to use 'run', or start the daemon if needed before check.
+	// TODO: use mypy.targets setting instead of '.'
+	// TODO: use mypy.configFile setting
 	const result = await runDmypy(folder, ['check', '--', '.'], [0, 1]);
 	const diagnostics = getWorkspaceDiagnostics(folder);
 	diagnostics.clear();
