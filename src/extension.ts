@@ -32,7 +32,7 @@ function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): void {
 
 async function startDaemon(folder: vscode.Uri): Promise<boolean> {
 	outputChannel.appendLine(`Start daemon: ${folder.fsPath}`);
-	const result = await runDmypy(folder, ['restart', '--', '--follow-imports=skip', '--show-column-numbers']);
+	const result = await runDmypy(folder, ['restart', '--', '--show-column-numbers']);
 	if (result.success) {
 		runningDaemons.add(folder);
 	}
