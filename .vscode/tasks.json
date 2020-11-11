@@ -4,7 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "command": "yarn run vscode:prepublish",
+            "command": "npm run compile",
             "type": "shell",
             "label": "Build extension",
             "problemMatcher": [],
@@ -14,7 +14,7 @@
             }
         },
         {
-            "command": "yarn run compile",
+            "command": "npm run watch",
             "type": "shell",
             "label": "Build extension (watch)",
             "problemMatcher": [],
