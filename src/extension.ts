@@ -19,7 +19,9 @@ export function activate(context: ExtensionContext) {
 			'~\\.mypyls\\Scripts\\mypyls.exe' :
 			'~/.mypyls/bin/mypyls';
 	}
-	const executable = untildify(executableSetting);
+	const executable = executableSetting.startsWith('${workspaceFolder}')
+		? executableSetting.replace('${workspaceFolder}', workspace.rootPath)
+		: untildify(executableSetting);
 	if (!fs.existsSync(executable)) {
 		window.showWarningMessage(
 			'mypyls not found. Please install mypyls and reload. See extension installation instructions. ' +
