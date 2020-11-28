@@ -13,9 +13,10 @@ import untildify = require('untildify');
 let statusBarItem: StatusBarItem;
 
 export function activate(context: ExtensionContext) {
-	let executableSetting = workspace.getConfiguration("mypy").get<string>("executable");
-	if (executableSetting === '') {
-		executableSetting = (process.platform === "win32") ?
+
+	let executableSetting = workspace.getConfiguration('mypy').get<string>('executable');
+	if (executableSetting === '' || executableSetting === undefined) {
+		executableSetting = (process.platform === 'win32') ?
 			'~\\.mypyls\\Scripts\\mypyls.exe' :
 			'~/.mypyls/bin/mypyls';
 	}
