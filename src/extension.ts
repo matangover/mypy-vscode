@@ -26,9 +26,21 @@ export function activate(context: ExtensionContext) {
 			'~\\.mypyls\\Scripts\\mypyls.exe' :
 			'~/.mypyls/bin/mypyls';
 	}
-	const executable = executableSetting.startsWith('${workspaceFolder}')
-		? executableSetting.replace('${workspaceFolder}', workspace.rootPath)
-		: untildify(executableSetting);
+
+	let executable = untildify(executableSetting);
+	if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+		// We only support a single workspace folder for now.
+		const workspaceFolder = workspace.workspaceFolders[0].uri.fsPath;
+		executable = executable.replace('${workspaceFolder}', workspaceFolder);
+	} else {
+		// No workspace is open.
+		if (executable.indexOf('${workspaceFolder}') != -1) {
+			window.showWarningMessage(
+				'Cannot start mypyls: mypy.executable contains ${workspaceFolder} but no workspace is open.'
+			);
+			return;
+		}
+	}
 	if (!fs.existsSync(executable)) {
 		window.showWarningMessage(
 			'mypyls not found. Please install mypyls and reload. See extension installation instructions. ' +
