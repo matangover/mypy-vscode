@@ -5,7 +5,7 @@
 'use strict';
 
 
-import { workspace, ExtensionContext, StatusBarItem, window } from 'vscode';
+import { workspace, ExtensionContext, StatusBarItem, window, extensions } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions } from 'vscode-languageclient';
 import * as fs from 'fs';
 import untildify = require('untildify');
@@ -13,6 +13,12 @@ import untildify = require('untildify');
 let statusBarItem: StatusBarItem;
 
 export function activate(context: ExtensionContext) {
+	// Save current extension version, in order to detect upgrades in the future.
+	const extension = extensions.getExtension('matangover.mypy');
+	if (extension) {
+		const currentVersion = extension.packageJSON.version;
+		context.globalState.update('extensionVersion', currentVersion);
+	}
 
 	let executableSetting = workspace.getConfiguration('mypy').get<string>('executable');
 	if (executableSetting === '' || executableSetting === undefined) {
