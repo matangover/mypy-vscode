@@ -5,7 +5,7 @@
     "author": "Matan Gover",
     "repository": "https://github.com/matangover/mypy-vscode",
     "license": "MIT",
-    "version": "0.1.5",
+    "version": "0.2.0",
     "publisher": "matangover",
     "engines": {
         "vscode": "^1.46.0"
@@ -27,7 +27,13 @@
                 "mypy.executable": {
                     "type": "string",
                     "default": "",
-                    "description": "Path to mypyls executable (see extension installation instructions). If left empty, the default path is used (for Unix: ~/.mypyls/bin/mypyls, for Windows: %USERPROFILE%\\.mypyls\\Scripts\\mypyls.exe)."
+                    "description": "(Deprecated and unused) Path to mypyls executable",
+                    "deprecationMessage": "The mypy extension no longer uses mypyls. Use the new setting instead: mypy.dmypyExecutable"
+                },
+                "mypy.dmypyExecutable": {
+                    "type": "string",
+                    "default": "dmypy",
+                    "description": "Path to dmypy (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: ${workspaceFolder} and ~ (home directory)."
                 },
                 "mypy.configFile": {
                     "type": "string",
@@ -57,11 +63,14 @@
     "devDependencies": {
         "@types/child-process-promise": "^2.2.1",
         "@types/node": "^12.11.7",
+        "@types/semver": "^7.3.4",
         "@types/vscode": "^1.46.0",
         "typescript": "^4.0.2"
     },
     "dependencies": {
         "child-process-promise": "^2.2.1",
+        "lookpath": "^1.1.0",
+        "semver": "^7.3.2",
         "untildify": "^4.0.0"
     }
 }
