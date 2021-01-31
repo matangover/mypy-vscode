@@ -10,7 +10,6 @@ const runningDaemons = new Set<vscode.Uri>();
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
 let _context: vscode.ExtensionContext | null;
-let upgradedFromMypyls = false;
 
 export const mypyOutputPattern = /^(?<file>[^:]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
 
@@ -18,77 +17,87 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	_context = context;
 	context.subscriptions.push(outputChannel);
 	const previousVersion = context.globalState.get<string>('extensionVersion');
+	let upgradedFromMypyls = false;
 	if (previousVersion && semver.valid(previousVersion) && semver.lt(previousVersion, '0.2.0')) {
 		upgradedFromMypyls = true;
 	}
 	const extension = vscode.extensions.getExtension('matangover.mypy');
 	const currentVersion = extension?.packageJSON.version;
-	outputChannel.appendLine(`Mypy extension activated, version ${currentVersion}`);
 	context.globalState.update('extensionVersion', currentVersion);
 
+	outputChannel.appendLine(`Mypy extension activated, version ${currentVersion}`);
 	if (extension?.extensionKind === vscode.ExtensionKind.Workspace) {
 		outputChannel.appendLine('Running remotely');
 	}
 
-
-	// TODO: log extension version and mypy version to output
 	// TODO: add setting to use active Python interpreter to run mypy (mypy installed in project)
 	// TODO: listen to modified settings (or Python interpreter) and restart server
 
+	await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
+	if (upgradedFromMypyls) {
+		await migrateDefaultMypylsToDmypy();
+	}
+
 	if (vscode.workspace.workspaceFolders) {
-		await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
 		await Promise.all(vscode.workspace.workspaceFolders.map(folder => startDaemonAndCheckWorkspace(folder.uri)));
 	}
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
 }
 
-async function migrateDeprecatedSettings(folders: readonly vscode.WorkspaceFolder[]) {
-	let migrationNeeded = false;
-	let migrationSucceeded = false;
-	for (let folder of folders) {
-		const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
-		// Try migrating the deprecated executable setting if it exists and is more specific than the new setting.
-		const newExecutablePriority = getPriority(mypyConfig.inspect('dmypyExecutable'));
-		const deprecatedExecutablePriority = getPriority(mypyConfig.inspect('executable'));
-		if (deprecatedExecutablePriority > newExecutablePriority) {
-			migrationNeeded = true;
-			const migrationTarget = getConfigurationTarget(mypyConfig.inspect('executable'));
-			const deprecatedExecutable = mypyConfig.get<string>('executable');
-			if (deprecatedExecutable) {
-				const dmypyPathGuess = path.join(path.dirname(deprecatedExecutable), 'dmypy');
-				if (fs.existsSync(dmypyPathGuess)) {
-					await mypyConfig.update('dmypyExecutable', dmypyPathGuess, migrationTarget);
-					await mypyConfig.update('executable', undefined, migrationTarget);
-					migrationSucceeded = true;
-				}
-			}
+async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
+	const migration = {needed: false, failed: []}
+	// Migrate workspace folder settings.
+	if (folders !== undefined) {
+		for (let folder of folders) {
+			await migrate(folder, vscode.ConfigurationTarget.WorkspaceFolder, migration, `settings for workspace folder '${folder.name}'`);
 		}
 	}
-	if (migrationNeeded) {
-		if (migrationSucceeded) {
+	// Migrate workspace settings.
+	await migrate(null, vscode.ConfigurationTarget.Workspace, migration, 'workspace settings');
+	// Migrate user settings.
+	await migrate(null, vscode.ConfigurationTarget.Global, migration, 'user settings');
+	
+	if (migration.needed) {
+		if (migration.failed.length == 0) {
 			vscode.window.showInformationMessage(
-				'The Mypy extension now uses dmypy instead of mypyls. ' +
-				'Your mypy.executable setting has been migrated to the new mypy.dmypyExecutable.'
+				'The Mypy extension now uses the mypy daemon (dmypy) instead of mypyls. ' +
+				'Your mypy.executable settings have been migrated to the new mypy.dmypyExecutable.'
 			);
 		} else {
 			vscode.window.showInformationMessage(
-				'The Mypy extension now uses dmypy instead of mypyls. ' +
-				'Please use the new mypy.dmypyExecutable setting instead of mypy.executable.'
+				'The Mypy extension now uses the mypy daemon (dmypy) instead of mypyls. ' +
+				'Please use the new mypy.dmypyExecutable setting instead of mypy.executable. ' +
+				'The deprecated mypy.executable settings was found in: ' +
+				 migration.failed.join(", ") + '.'
 			);
 		}
-	}
-
-	const globalSetting = vscode.workspace.getConfiguration('mypy').inspect('dmypyExecutable')?.globalValue;
-	if (upgradedFromMypyls && globalSetting === undefined) {
-		// This is the first time the extension is activated since the user has upgraded from
-		// a previous version that used mypyls. Migrate the global setting.
-		await migrateDefaultMypylsToDmypy();
-		upgradedFromMypyls = false;
-	}
+	}	
 }
 
+async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.ConfigurationTarget, migration: { needed: boolean; failed: string[]; }, targetLabel: string) {
+	const config = vscode.workspace.getConfiguration('mypy', scope);
+	const mypylsSetting = config.inspect<string>('executable');
+	const mypylsExecutable = getValue(mypylsSetting, target);
+	if (mypylsExecutable === undefined) {
+		return;
+	}
+
+	migration.needed = true;
+	const dmypyExecutable = path.join(path.dirname(mypylsExecutable), 'dmypy');
+	if (fs.existsSync(dmypyExecutable)) {
+		await config.update('dmypyExecutable', dmypyExecutable, target);
+		await config.update('executable', undefined, target);
+	} else {
+		migration.failed.push(targetLabel);
+	}
+}
 async function migrateDefaultMypylsToDmypy() {
+	const dmypyUserSetting = vscode.workspace.getConfiguration("mypy").inspect<string>("dmypyExecutable")?.globalValue;
+	if (dmypyUserSetting !== undefined) {
+		return;
+	}
+
 	const dmypyInPath = lookpath('dmypy') !== undefined;
 	if (dmypyInPath) {
 		vscode.window.showInformationMessage(
@@ -99,17 +108,26 @@ async function migrateDefaultMypylsToDmypy() {
 	}
 
 	const mypyls = getDefaultMypylsExecutable();
+	let dmypyFound = false;
 	if (fs.existsSync(mypyls)) {
 		// mypyls is installed in the default location, try using dmypy from the mypyls
 		// installation.
-		const dmypyPathGuess = path.join(path.dirname(mypyls), 'dmypy');
-		if (fs.existsSync(dmypyPathGuess)) {
+		const dmypyExecutable = path.join(path.dirname(mypyls), 'dmypy');
+		if (fs.existsSync(dmypyExecutable)) {
 			await vscode.workspace.getConfiguration('mypy').update(
 				'dmypyExecutable',
-				dmypyPathGuess,
+				dmypyExecutable,
 				vscode.ConfigurationTarget.Global
 			);
+			dmypyFound = true;
 		}
+	}
+	if (!dmypyFound) {
+		vscode.window.showInformationMessage(
+			'The Mypy extension has been updated. It now uses the mypy daemon (dmypy), however dmypy ' + 
+			'was not found on your system. Please install mypy in your PATH or change the ' +
+			'mypy.dmypyExecutable setting.'
+		);
 	}
 }
 
@@ -120,23 +138,18 @@ function getDefaultMypylsExecutable() {
 	return untildify(executable);
 }
 
-function getPriority(config: ReturnType<vscode.WorkspaceConfiguration['inspect']>): number {
-	return getConfigurationTarget(config) ?? 0;
-}
-
-function getConfigurationTarget(config: ReturnType<vscode.WorkspaceConfiguration['inspect']>): vscode.ConfigurationTarget | undefined {
+function getValue<T>(
+	config: {globalValue?: T, workspaceValue?: T, workspaceFolderValue?: T} | undefined,
+	target: vscode.ConfigurationTarget) {
 	if (config === undefined) {
 		// Configuration does not exist.
 		return undefined;
-	} else if (config.globalValue !== undefined) {
-		return vscode.ConfigurationTarget.Global;
-	} else if (config.workspaceValue !== undefined) {
-		return vscode.ConfigurationTarget.Workspace;
-	} else if (config.workspaceFolderValue !== undefined) {
-		return vscode.ConfigurationTarget.WorkspaceFolder;
-	} else {
-		// Configuration is not defined.
-		return undefined;
+	} else if (target == vscode.ConfigurationTarget.Global) {
+		return config.globalValue;
+	} else if (target == vscode.ConfigurationTarget.Workspace) {
+		return config.workspaceValue;
+	} else if (target == vscode.ConfigurationTarget.WorkspaceFolder) {
+		return config.workspaceFolderValue;
 	}
 }
 
@@ -155,6 +168,7 @@ async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): P
 
 async function startDaemon(folder: vscode.Uri): Promise<boolean> {
 	outputChannel.appendLine(`Start daemon: ${folder.fsPath}`);
+	// TODO: log dmypy path to output
 	// TODO: use mypy.configFile setting
 	const result = await runDmypy(folder, ['restart', '--', '--show-column-numbers']);
 	if (result.success) {
