@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { spawn } from 'child-process-promise';
 import * as fs from 'fs';
-import {lookpath} from 'lookpath';
+import { lookpath } from 'lookpath';
 import untildify = require('untildify');
 import * as semver from 'semver';
 
@@ -46,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
-	const migration = {needed: false, failed: []}
+	const migration = { needed: false, failed: [] }
 	// Migrate workspace folder settings.
 	if (folders !== undefined) {
 		for (let folder of folders) {
@@ -57,7 +57,7 @@ async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFold
 	await migrate(null, vscode.ConfigurationTarget.Workspace, migration, 'workspace settings');
 	// Migrate user settings.
 	await migrate(null, vscode.ConfigurationTarget.Global, migration, 'user settings');
-	
+
 	if (migration.needed) {
 		if (migration.failed.length == 0) {
 			vscode.window.showInformationMessage(
@@ -69,10 +69,10 @@ async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFold
 				'The Mypy extension now uses the mypy daemon (dmypy) instead of mypyls. ' +
 				'Please use the new mypy.dmypyExecutable setting instead of mypy.executable. ' +
 				'The deprecated mypy.executable settings was found in: ' +
-				 migration.failed.join(", ") + '.'
+				migration.failed.join(", ") + '.'
 			);
 		}
-	}	
+	}
 }
 
 async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.ConfigurationTarget, migration: { needed: boolean; failed: string[]; }, targetLabel: string) {
@@ -92,6 +92,7 @@ async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.Conf
 		migration.failed.push(targetLabel);
 	}
 }
+
 async function migrateDefaultMypylsToDmypy() {
 	const dmypyUserSetting = vscode.workspace.getConfiguration("mypy").inspect<string>("dmypyExecutable")?.globalValue;
 	if (dmypyUserSetting !== undefined) {
@@ -101,7 +102,7 @@ async function migrateDefaultMypylsToDmypy() {
 	const dmypyInPath = lookpath('dmypy') !== undefined;
 	if (dmypyInPath) {
 		vscode.window.showInformationMessage(
-			'The Mypy extension has been updated. It will now use the mypy daemon (found in your ' + 
+			'The Mypy extension has been updated. It will now use the mypy daemon (found in your ' +
 			'PATH) instead of the mypy language server.'
 		);
 		return;
@@ -124,7 +125,7 @@ async function migrateDefaultMypylsToDmypy() {
 	}
 	if (!dmypyFound) {
 		vscode.window.showInformationMessage(
-			'The Mypy extension has been updated. It now uses the mypy daemon (dmypy), however dmypy ' + 
+			'The Mypy extension has been updated. It now uses the mypy daemon (dmypy), however dmypy ' +
 			'was not found on your system. Please install mypy in your PATH or change the ' +
 			'mypy.dmypyExecutable setting.'
 		);
@@ -139,7 +140,7 @@ function getDefaultMypylsExecutable() {
 }
 
 function getValue<T>(
-	config: {globalValue?: T, workspaceValue?: T, workspaceFolderValue?: T} | undefined,
+	config: { globalValue?: T, workspaceValue?: T, workspaceFolderValue?: T } | undefined,
 	target: vscode.ConfigurationTarget) {
 	if (config === undefined) {
 		// Configuration does not exist.
@@ -191,7 +192,7 @@ async function stopDaemon(folder: vscode.Uri): Promise<void> {
 		outputChannel.appendLine(`Daemon not running.`);
 		return;
 	}
-	
+
 	const result = await runDmypy(folder, ['stop']);
 	if (result.success) {
 		runningDaemons.delete(folder);
@@ -199,10 +200,10 @@ async function stopDaemon(folder: vscode.Uri): Promise<void> {
 }
 
 async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?: number[]):
-		Promise<{success: boolean, stdout: string | null}> {
+	Promise<{ success: boolean, stdout: string | null }> {
 	const mypyExecutable = getDmypyExecutable(folder);
 	if (mypyExecutable === undefined) {
-		return {success: false, stdout: null};
+		return { success: false, stdout: null };
 	}
 	// TODO: get interpreter path using new API
 	// const config = vscode.workspace.getConfiguration('python', folder);
@@ -222,7 +223,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?
 				successfulExitCodes
 			}
 		);
-		return {success: true, stdout: result.stdout};
+		return { success: true, stdout: result.stdout };
 	} catch (ex) {
 		outputChannel.appendLine('Error running dmypy:');
 		outputChannel.appendLine(ex.toString());
@@ -235,7 +236,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?
 				// TODO: if stderr contains `ModuleNotFoundError: No module named 'mypy'` then show error - mypy not installed
 			}
 		}
-		return {success: false, stdout: null};
+		return { success: false, stdout: null };
 	}
 }
 
@@ -281,7 +282,7 @@ async function checkWorkspace(folder: vscode.Uri) {
 		let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
 		let match: RegExpExecArray | null;
 		while ((match = mypyOutputPattern.exec(result.stdout)) !== null) {
-			const groups = match.groups as {file: string, line: string, column?: string, type: string, message: string};
+			const groups = match.groups as { file: string, line: string, column?: string, type: string, message: string };
 			const fileUri = vscode.Uri.file(path.join(folder.fsPath, groups.file));
 			if (!fileDiagnostics.has(fileUri)) {
 				fileDiagnostics.set(fileUri, []);
