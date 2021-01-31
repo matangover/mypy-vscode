@@ -99,10 +99,10 @@ async function migrateDefaultMypylsToDmypy() {
 		return;
 	}
 
-	const dmypyInPath = lookpath('dmypy') !== undefined;
+	const dmypyInPath = (await lookpath('dmypy')) !== undefined;
 	if (dmypyInPath) {
 		vscode.window.showInformationMessage(
-			'The Mypy extension has been updated. It will now use the mypy daemon (found in your ' +
+			'The Mypy extension has been updated. It will now use the mypy daemon (found on your ' +
 			'PATH) instead of the mypy language server.'
 		);
 		return;
@@ -126,7 +126,7 @@ async function migrateDefaultMypylsToDmypy() {
 	if (!dmypyFound) {
 		vscode.window.showInformationMessage(
 			'The Mypy extension has been updated. It now uses the mypy daemon (dmypy), however dmypy ' +
-			'was not found on your system. Please install mypy in your PATH or change the ' +
+			'was not found on your system. Please install mypy on your PATH or change the ' +
 			'mypy.dmypyExecutable setting.'
 		);
 	}
@@ -171,7 +171,7 @@ async function startDaemon(folder: vscode.Uri): Promise<boolean> {
 	outputChannel.appendLine(`Start daemon: ${folder.fsPath}`);
 	// TODO: log dmypy path to output
 	// TODO: use mypy.configFile setting
-	const result = await runDmypy(folder, ['restart', '--', '--show-column-numbers']);
+	const result = await runDmypy(folder, ['restart', '--', '--show-column-numbers'], true);
 	if (result.success) {
 		runningDaemons.add(folder);
 	}
@@ -199,9 +199,9 @@ async function stopDaemon(folder: vscode.Uri): Promise<void> {
 	}
 }
 
-async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?: number[]):
+async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed?: boolean, successfulExitCodes?: number[]):
 	Promise<{ success: boolean, stdout: string | null }> {
-	const mypyExecutable = getDmypyExecutable(folder);
+	const mypyExecutable = await getDmypyExecutable(folder, warnIfFailed ?? false);
 	if (mypyExecutable === undefined) {
 		return { success: false, stdout: null };
 	}
@@ -240,21 +240,33 @@ async function runDmypy(folder: vscode.Uri, args: string[], successfulExitCodes?
 	}
 }
 
-function getDmypyExecutable(folder: vscode.Uri): string | undefined {
+async function getDmypyExecutable(folder: vscode.Uri, warn: boolean): Promise<string | undefined> {
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let dmypyExecutable = mypyConfig.get<string>('dmypyExecutable') ?? 'dmypy';
 	const isCommand = path.parse(dmypyExecutable).dir === '';
 	if (isCommand) {
-		const foundInPath = lookpath(dmypyExecutable) !== undefined;
-		if (!foundInPath) {
-			vscode.window.showWarningMessage(
-				`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
-				`Please install mypy or adjust the mypy.dmypyExecutable setting.`
-			)
+		const executable = await lookpath(dmypyExecutable);
+		if (executable === undefined) {
+			if (warn) {
+				vscode.window.showWarningMessage(
+					`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
+					`Please install mypy or adjust the mypy.dmypyExecutable setting.`
+				)
+			}
 			return undefined;
 		}
+		dmypyExecutable = executable;
 	} else {
 		dmypyExecutable = untildify(dmypyExecutable).replace('${workspaceFolder}', folder.fsPath)
+		if (!fs.existsSync(dmypyExecutable)) {
+			if (warn) {
+				vscode.window.showWarningMessage(
+					`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
+					`Please install mypy or adjust the mypy.dmypyExecutable setting.`
+				)
+			}
+			return undefined;
+		}
 	}
 	return dmypyExecutable;
 }
@@ -275,7 +287,7 @@ async function checkWorkspace(folder: vscode.Uri) {
 	// 		 Better to use 'run', or start the daemon if needed before check.
 	// TODO: use mypy.targets setting instead of '.'
 	// TODO: use mypy.configFile setting
-	const result = await runDmypy(folder, ['check', '--', '.'], [0, 1]);
+	const result = await runDmypy(folder, ['check', '--', '.'], false, [0, 1]);
 	const diagnostics = getWorkspaceDiagnostics(folder);
 	diagnostics.clear();
 	if (result.success && result.stdout) {
