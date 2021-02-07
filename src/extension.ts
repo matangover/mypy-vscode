@@ -13,7 +13,7 @@ const outputChannel = vscode.window.createOutputChannel('Mypy');
 let _context: vscode.ExtensionContext | null;
 let lock = new AsyncLock();
 
-export const mypyOutputPattern = /^(?<file>[^:]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
+export const mypyOutputPattern = /^(?<file>[^:\n]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	_context = context;
