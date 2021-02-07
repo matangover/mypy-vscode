@@ -338,7 +338,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	outputChannel.appendLine(`Check workspace: ${folder.fsPath}`);
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
 	let targets = mypyConfig.get<string[]>("targets");
-	if (!targets) {
+	if (targets === undefined || targets.length === 0) {
 		// No targets, check the entire workspace folder. Use an empty string rather than "." to
 		// allow overriding using the `files` option in the the mypy config file.
 		targets = [""];
