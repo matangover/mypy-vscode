@@ -246,16 +246,22 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 		);
 		return { success: true, stdout: result.stdout };
 	} catch (ex) {
-		warn(`Error running mypy daemon: ${ex}`, warnIfFailed);
+		let error = ex.toString();
 		if (ex.name === 'ChildProcessError') {
+			ex = ex as TypeError;
 			if (ex.stdout) {
 				outputChannel.appendLine(`stdout:\n${ex.stdout}`);
 			}
 			if (ex.stderr) {
 				outputChannel.appendLine(`stderr:\n${ex.stderr}`);
 				// TODO: if stderr contains `ModuleNotFoundError: No module named 'mypy'` then show error - mypy not installed
+				if ((ex.stderr as string).indexOf('Daemon crashed!') != -1) {
+					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
+					'see Output panel for details. The daemon will be restarted automatically.'
 				}
 			}
+		}
+		warn(`Error running mypy: ${error}`, warnIfFailed);
 		return { success: false, stdout: null };
 	}
 }
