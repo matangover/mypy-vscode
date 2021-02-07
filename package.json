@@ -64,6 +64,7 @@
         "watch": "tsc -watch -p ./"
     },
     "devDependencies": {
+        "@types/async-lock": "^1.1.2",
         "@types/child-process-promise": "^2.2.1",
         "@types/node": "^12.11.7",
         "@types/semver": "^7.3.4",
@@ -71,6 +72,7 @@
         "typescript": "^4.0.2"
     },
     "dependencies": {
+        "async-lock": "^1.2.8",
         "child-process-promise": "^2.2.1",
         "lookpath": "^1.1.0",
         "semver": "^7.3.2",

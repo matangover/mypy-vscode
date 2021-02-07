@@ -6,10 +6,12 @@ import { lookpath } from 'lookpath';
 import untildify = require('untildify');
 import * as semver from 'semver';
 import { quote } from 'shlex';
+import * as AsyncLock from 'async-lock';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
 let _context: vscode.ExtensionContext | null;
+let lock = new AsyncLock();
 
 export const mypyOutputPattern = /^(?<file>[^:]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
 
@@ -30,8 +32,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		outputChannel.appendLine('Running remotely');
 	}
 
-	// TODO: add setting to use active Python interpreter to run mypy (mypy installed in project)
-	// TODO: listen to modified settings (or Python interpreter) and restart server
+	outputChannel.appendLine('Registering listener for interpreter changed event')
+	const pythonExtension = await getPythonExtension();
+	if (pythonExtension !== undefined) {
+		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
+			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
+			_context?.subscriptions.push(handler);
+			outputChannel.appendLine('Listener registered')
+		}
+	}
 	// TODO: add 'Mypy: recheck workspace' command.
 
 	await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
@@ -45,14 +54,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(configurationChanged));
-	outputChannel.appendLine('Registering listener for interpreter changed event')
-	const pythonExtension = await getPythonExtension();
-	if (pythonExtension !== undefined) {
-		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
-			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
-			_context?.subscriptions.push(handler);
-		}
-	}
 }
 
 async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
@@ -174,6 +175,7 @@ export async function deactivate(): Promise<void> {
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
+	outputChannel.appendLine('Workspace folders changed');
 	await Promise.all(e.removed.map(folder => stopDaemon(folder.uri)));
 	await migrateDeprecatedSettings(e.added);
 	await Promise.all(e.added.map(folder => checkWorkspace(folder.uri)));
@@ -277,6 +279,7 @@ function documentSaved(document: vscode.TextDocument): void {
 	}
 
 	if (document.languageId == "python" || isMaybeConfigFile(folder, document.fileName)) {
+		outputChannel.appendLine(`Document saved: ${document.uri.fsPath}`);
 		checkWorkspace(folder.uri);
 	}
 }
@@ -299,11 +302,16 @@ function isMaybeConfigFile(folder: vscode.WorkspaceFolder, file: string) {
 
 function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 	if (event.affectsConfiguration("mypy") || event.affectsConfiguration("python.pythonPath")) {
+		outputChannel.appendLine("Mypy settings changed");
 		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
 	}
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
+	await lock.acquire(folder.fsPath, () => checkWorkspaceInternal(folder));
+}
+
+async function checkWorkspaceInternal(folder: vscode.Uri) {
 	outputChannel.appendLine(`Check workspace: ${folder.fsPath}`);
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
 	let targets = mypyConfig.get<string[]>("targets");
@@ -403,6 +411,7 @@ async function getPythonPathFromPythonExtension(
 }
 
 function activeInterpreterChanged(resource: vscode.Uri | undefined) {
+	outputChannel.appendLine(`Active interpreter changed for resource: ${resource?.fsPath}`);
 	if (resource === undefined) {
 		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
 	} else {
