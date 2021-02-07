@@ -7,6 +7,8 @@ import untildify = require('untildify');
 import * as semver from 'semver';
 import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
+import * as allSettled from 'promise.allsettled';
+import {PromiseRejection} from 'promise.allsettled';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
@@ -48,9 +50,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await migrateDefaultMypylsToDmypy();
 	}
 
-	if (vscode.workspace.workspaceFolders) {
-		await Promise.all(vscode.workspace.workspaceFolders.map(folder => checkWorkspace(folder.uri)));
-	}
+	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(configurationChanged));
@@ -167,18 +167,35 @@ function getValue<T>(
 
 export async function deactivate(): Promise<void> {
 	outputChannel.appendLine(`Mypy extension deactivating, shutting down daemons...`);
-	const folders = vscode.workspace.workspaceFolders;
-	if (folders) {
-		await Promise.all(folders.map(folder => stopDaemon(folder.uri)));
-	}
+	await forEachFolder(vscode.workspace.workspaceFolders, folder => stopDaemon(folder.uri));
 	outputChannel.appendLine(`Mypy daemons stopped, extension deactivated`);
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
 	outputChannel.appendLine('Workspace folders changed');
-	await Promise.all(e.removed.map(folder => stopDaemon(folder.uri)));
+	await forEachFolder(e.removed, folder => stopDaemon(folder.uri));
 	await migrateDeprecatedSettings(e.added);
-	await Promise.all(e.added.map(folder => checkWorkspace(folder.uri)));
+	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
+}
+
+async function forEachFolder(folders: readonly vscode.WorkspaceFolder[] | undefined, func: (folder: vscode.WorkspaceFolder) => Promise<any>, ignoreErrors = true) {
+	if (folders === undefined) {
+		return;
+	}
+
+	// Run the function for each callback, and catch errors if any.
+	// Use allSettled instead of Promise.all to always await all Promises, even if one rejects.
+	const promises = folders.map(func);
+	const results = await allSettled(promises);
+	if (ignoreErrors) {
+		return;
+	}
+	
+	const rejections = results.filter(r => r.status === "rejected");
+	const errors = rejections.map(r => (r as PromiseRejection<any>).reason);
+	if (errors.length > 0) {
+		throw errors;
+	}
 }
 
 
@@ -237,8 +254,8 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 			if (ex.stderr) {
 				outputChannel.appendLine(`stderr:\n${ex.stderr}`);
 				// TODO: if stderr contains `ModuleNotFoundError: No module named 'mypy'` then show error - mypy not installed
+				}
 			}
-		}
 		return { success: false, stdout: null };
 	}
 }
