@@ -5,8 +5,8 @@ import * as fs from 'fs';
 import { lookpath } from 'lookpath';
 import untildify = require('untildify');
 import * as semver from 'semver';
+import { quote } from 'shlex';
 
-const runningDaemons = new Set<vscode.Uri>();
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
 let _context: vscode.ExtensionContext | null;
@@ -32,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// TODO: add setting to use active Python interpreter to run mypy (mypy installed in project)
 	// TODO: listen to modified settings (or Python interpreter) and restart server
+	// TODO: add 'Mypy: recheck workspace' command.
 
 	await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
 	if (upgradedFromMypyls) {
@@ -39,10 +40,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	if (vscode.workspace.workspaceFolders) {
-		await Promise.all(vscode.workspace.workspaceFolders.map(folder => startDaemonAndCheckWorkspace(folder.uri)));
+		await Promise.all(vscode.workspace.workspaceFolders.map(folder => checkWorkspace(folder.uri)));
 	}
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(configurationChanged));
+	outputChannel.appendLine('Registering listener for interpreter changed event')
+	const pythonExtension = await getPythonExtension();
+	if (pythonExtension !== undefined) {
+		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
+			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
+			_context?.subscriptions.push(handler);
+		}
+	}
 }
 
 async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
@@ -156,66 +166,58 @@ function getValue<T>(
 
 export async function deactivate(): Promise<void> {
 	outputChannel.appendLine(`Mypy extension deactivating, shutting down daemons...`);
-	let daemonStopPromises = Array.from(runningDaemons).map(folder => stopDaemon(folder));
-	await Promise.all(daemonStopPromises);
+	const folders = vscode.workspace.workspaceFolders;
+	if (folders) {
+		await Promise.all(folders.map(folder => stopDaemon(folder.uri)));
+	}
 	outputChannel.appendLine(`Mypy daemons stopped, extension deactivated`);
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
 	await Promise.all(e.removed.map(folder => stopDaemon(folder.uri)));
 	await migrateDeprecatedSettings(e.added);
-	await Promise.all(e.added.map(folder => startDaemonAndCheckWorkspace(folder.uri)));
+	await Promise.all(e.added.map(folder => checkWorkspace(folder.uri)));
 }
 
-async function startDaemon(folder: vscode.Uri): Promise<boolean> {
-	outputChannel.appendLine(`Start daemon: ${folder.fsPath}`);
-	// TODO: log dmypy path to output
-	// TODO: use mypy.configFile setting
-	const result = await runDmypy(folder, ['restart', '--', '--show-column-numbers'], true);
-	if (result.success) {
-		runningDaemons.add(folder);
-	}
-	// TODO: Show error if daemon didn't start.
-	return result.success;
-}
-
-async function startDaemonAndCheckWorkspace(folder: vscode.Uri): Promise<void> {
-	const daemonStarted = await startDaemon(folder);
-	if (daemonStarted) {
-		checkWorkspace(folder);
-	}
-}
 
 async function stopDaemon(folder: vscode.Uri): Promise<void> {
 	outputChannel.appendLine(`Stop daemon: ${folder.fsPath}`);
-	if (!runningDaemons.has(folder)) {
-		outputChannel.appendLine(`Daemon not running.`);
-		return;
-	}
 
-	const result = await runDmypy(folder, ['stop']);
-	if (result.success) {
-		runningDaemons.delete(folder);
-	}
+	await runDmypy(folder, ['stop']);
 }
 
-async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed?: boolean, successfulExitCodes?: number[]):
+async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, successfulExitCodes?: number[], addPythonExecutableArgument=false):
 	Promise<{ success: boolean, stdout: string | null }> {
-	const mypyExecutable = await getDmypyExecutable(folder, warnIfFailed ?? false);
-	if (mypyExecutable === undefined) {
+
+	const activeInterpreter = await getActiveInterpreter(folder);
+	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
+	let executable: string | undefined;
+	if (mypyConfig.get<boolean>('runUsingActiveInterpreter')) {
+		executable = activeInterpreter;
+		args = ["-m", "mypy.dmypy", ...args];
+		if (executable === undefined) {
+			warn(
+				"Could not run mypy: no active interpreter. Please activate an interpreter or " +
+				"switch off the mypy.runUsingActiveInterpreter setting.",
+				warnIfFailed
+			);
+		}
+	} else {
+		executable = await getDmypyExecutable(folder, warnIfFailed);
+	}
+	if (executable === undefined) {
 		return { success: false, stdout: null };
 	}
-	// TODO: get interpreter path using new API
-	// const config = vscode.workspace.getConfiguration('python', folder);
-	// const pythonPath = config.pythonPath || 'python';
-	// TODO: if python executable does not exist, write error.
-	// TODO: allow using global mypy installation using mypy.dmypyExecutable settings
+
+	if (addPythonExecutableArgument && activeInterpreter) {
+		args = [...args, '--python-executable', activeInterpreter];
+	}
+
+	const command = [executable, ...args].map(quote).join(" ");
+	outputChannel.appendLine(`Running dmypy in folder ${folder.fsPath}\n${command}`);
 	try {
-		// TODO: specify Python executable if running from global mypy.
 		const result = await spawn(
-			// pythonPath,
-			// ['-m', 'mypy.dmypy'].concat(args),
-			mypyExecutable,
+			executable,
 			args,
 			{
 				cwd: folder.fsPath,
@@ -225,8 +227,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed?: boole
 		);
 		return { success: true, stdout: result.stdout };
 	} catch (ex) {
-		outputChannel.appendLine('Error running dmypy:');
-		outputChannel.appendLine(ex.toString());
+		warn(`Error running mypy daemon: ${ex}`, warnIfFailed);
 		if (ex.name === 'ChildProcessError') {
 			if (ex.stdout) {
 				outputChannel.appendLine(`stdout:\n${ex.stdout}`);
@@ -240,31 +241,29 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed?: boole
 	}
 }
 
-async function getDmypyExecutable(folder: vscode.Uri, warn: boolean): Promise<string | undefined> {
+async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean): Promise<string | undefined> {
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let dmypyExecutable = mypyConfig.get<string>('dmypyExecutable') ?? 'dmypy';
 	const isCommand = path.parse(dmypyExecutable).dir === '';
 	if (isCommand) {
 		const executable = await lookpath(dmypyExecutable);
 		if (executable === undefined) {
-			if (warn) {
-				vscode.window.showWarningMessage(
-					`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
-					`Please install mypy or adjust the mypy.dmypyExecutable setting.`
-				)
-			}
+			warn(
+				`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
+				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
+				warnIfFailed
+			)
 			return undefined;
 		}
 		dmypyExecutable = executable;
 	} else {
 		dmypyExecutable = untildify(dmypyExecutable).replace('${workspaceFolder}', folder.fsPath)
 		if (!fs.existsSync(dmypyExecutable)) {
-			if (warn) {
-				vscode.window.showWarningMessage(
-					`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
-					`Please install mypy or adjust the mypy.dmypyExecutable setting.`
-				)
-			}
+			warn(
+				`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
+				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
+				warnIfFailed
+			)
 			return undefined;
 		}
 	}
@@ -276,18 +275,55 @@ function documentSaved(document: vscode.TextDocument): void {
 	if (!folder) {
 		return;
 	}
-	checkWorkspace(folder.uri);
+
+	if (document.languageId == "python" || isMaybeConfigFile(folder, document.fileName)) {
+		checkWorkspace(folder.uri);
+	}
+}
+
+function isMaybeConfigFile(folder: vscode.WorkspaceFolder, file: string) {
+	const name = path.basename(file);
+	if (name == "mypy.ini" || name == ".mypy.ini" || name == "setup.cfg" || name == "config") {
+		return true;
+	}
+
+	let configFile = vscode.workspace.getConfiguration("mypy", folder).get<string>("configFile");
+	if (configFile === undefined) {
+		return false;
+	}
+	if (!path.isAbsolute(configFile)) {
+		configFile = path.join(folder.uri.fsPath, configFile);
+	}
+	return path.normalize(configFile) == path.normalize(file);
+}
+
+function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
+	if (event.affectsConfiguration("mypy") || event.affectsConfiguration("python.pythonPath")) {
+		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
+	}
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
-	// TODO: server can only process one request at a time.
-	// TODO: progress status bar
 	outputChannel.appendLine(`Check workspace: ${folder.fsPath}`);
-	// TODO: 'check' can fail if server did not previously start (e.g. mypy was installed while VS Code was open)
-	// 		 Better to use 'run', or start the daemon if needed before check.
-	// TODO: use mypy.targets setting instead of '.'
-	// TODO: use mypy.configFile setting
-	const result = await runDmypy(folder, ['check', '--', '.'], false, [0, 1]);
+	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
+	let targets = mypyConfig.get<string[]>("targets");
+	if (!targets) {
+		// No targets, check the entire workspace folder. Use an empty string rather than "." to
+		// allow overriding using the `files` option in the the mypy config file.
+		targets = [""];
+	}
+	const args = ['run', '--', ...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output']
+	const configFile = mypyConfig.get<string>("configFile");
+	if (configFile) {
+		outputChannel.appendLine(`Using config file: ${configFile}`);
+		args.push('--config-file', configFile);
+	}
+	// TODO: progress status bar
+	const result = await runDmypy(folder, args, true, [0, 1], true);
+	if (result.stdout !== null) {
+		outputChannel.appendLine('Mypy output:');
+		outputChannel.appendLine(result.stdout ?? "\n");
+	}
 	const diagnostics = getWorkspaceDiagnostics(folder);
 	diagnostics.clear();
 	if (result.success && result.stdout) {
@@ -323,5 +359,82 @@ function getWorkspaceDiagnostics(folder: vscode.Uri): vscode.DiagnosticCollectio
 		diagnostics.set(folder, workspaceDiagnostics);
 		_context!.subscriptions.push(workspaceDiagnostics);
 		return workspaceDiagnostics;
+	}
+}
+
+async function getActiveInterpreter(folder: vscode.Uri) {
+	let path = await getPythonPathFromPythonExtension(folder);
+	if (path === undefined) {
+		path = vscode.workspace.getConfiguration('python', folder).get<string>('pythonPath');
+		outputChannel.appendLine(`Using python.pythonPath: ${path}`);
+		if (!path) {
+			path = undefined;
+		}
+	}
+	return path;
+}
+// The VS Code Python extension manages its own internal store of configuration settings.
+// The setting that was traditionally named "python.pythonPath" has been moved to the
+// Python extension's internal store. This function is mostly taken from pyright.
+async function getPythonPathFromPythonExtension(
+    scopeUri: vscode.Uri | undefined,
+): Promise<string | undefined> {
+    try {
+        const extension = await getPythonExtension();
+		if (extension === undefined) {
+			return;
+		}
+
+		const execDetails = await extension.exports.settings.getExecutionDetails(scopeUri);
+		let result: string | undefined;
+		if (execDetails.execCommand && execDetails.execCommand.length > 0) {
+			result = execDetails.execCommand[0];
+		}
+
+		outputChannel.appendLine(`Received python path from Python extension: ${result}`);
+		return result;
+    } catch (error) {
+        outputChannel.appendLine(
+            `Exception when reading python path from Python extension: ${JSON.stringify(error)}`
+        );
+    }
+
+    return undefined;
+}
+
+function activeInterpreterChanged(resource: vscode.Uri | undefined) {
+	if (resource === undefined) {
+		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
+	} else {
+		const folder = vscode.workspace.getWorkspaceFolder(resource);
+		if (folder) {
+			checkWorkspace(folder.uri);
+		}
+	}
+}
+
+async function getPythonExtension() {
+	const extension = vscode.extensions.getExtension('ms-python.python');
+	if (!extension) {
+		outputChannel.appendLine('Python extension not found');
+		return undefined;
+	}
+
+	if (!extension.packageJSON?.featureFlags?.usingNewInterpreterStorage) {
+		return undefined
+	}
+
+	if (!extension.isActive) {
+		outputChannel.appendLine('Waiting for Python extension to load');
+		await extension.activate();
+		outputChannel.appendLine('Python extension loaded');
+	}
+	return extension;
+}
+
+function warn(warning: string, show=false) {
+	outputChannel.appendLine(warning);
+	if (show) {
+		vscode.window.showWarningMessage(warning);
 	}
 }

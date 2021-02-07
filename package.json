@@ -35,6 +35,11 @@
                     "default": "dmypy",
                     "description": "Path to dmypy (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: ${workspaceFolder} and ~ (home directory)."
                 },
+                "mypy.runUsingActiveInterpreter": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the mypy.dmypyExecutable setting. Note: even when this setting is false, mypy still checks your code based on the packages installed in the active interpreter's Python path."
+                },
                 "mypy.configFile": {
                     "type": "string",
                     "default": "",
@@ -42,9 +47,7 @@
                 },
                 "mypy.targets": {
                     "type": "array",
-                    "default": [
-                        "."
-                    ],
+                    "default": [],
                     "items": {
                         "type": "string"
                     },
@@ -71,6 +74,7 @@
         "child-process-promise": "^2.2.1",
         "lookpath": "^1.1.0",
         "semver": "^7.3.2",
+        "shlex": "^2.0.2",
         "untildify": "^4.0.0"
     }
 }
