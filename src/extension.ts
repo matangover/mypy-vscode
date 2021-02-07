@@ -14,6 +14,8 @@ const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
 let _context: vscode.ExtensionContext | null;
 let lock = new AsyncLock();
+let statusBarItem: vscode.StatusBarItem;
+let activeChecks = 0;
 
 export const mypyOutputPattern = /^(?<file>[^:\n]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
 
@@ -33,6 +35,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (extension?.extensionKind === vscode.ExtensionKind.Workspace) {
 		outputChannel.appendLine('Running remotely');
 	}
+
+	statusBarItem = vscode.window.createStatusBarItem();
+	context.subscriptions.push(statusBarItem);
+	statusBarItem.text = "$(sync~spin) mypy";
 
 	outputChannel.appendLine('Registering listener for interpreter changed event')
 	const pythonExtension = await getPythonExtension();
@@ -331,11 +337,15 @@ function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
+	// Don't check the same workspace more than once at the same time.
 	await lock.acquire(folder.fsPath, () => checkWorkspaceInternal(folder));
 }
 
 async function checkWorkspaceInternal(folder: vscode.Uri) {
 	outputChannel.appendLine(`Check workspace: ${folder.fsPath}`);
+	statusBarItem.show();
+	activeChecks++;
+
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
 	let targets = mypyConfig.get<string[]>("targets");
 	if (targets === undefined || targets.length === 0) {
@@ -349,8 +359,13 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		outputChannel.appendLine(`Using config file: ${configFile}`);
 		args.push('--config-file', configFile);
 	}
-	// TODO: progress status bar
 	const result = await runDmypy(folder, args, true, [0, 1], true);
+
+	activeChecks--;
+	if (activeChecks == 0) {
+		statusBarItem.hide();
+	}
+
 	if (result.stdout !== null) {
 		outputChannel.appendLine('Mypy output:');
 		outputChannel.appendLine(result.stdout ?? "\n");
