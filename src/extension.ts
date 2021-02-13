@@ -182,7 +182,11 @@ export async function deactivate(): Promise<void> {
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
 	outputChannel.appendLine('Workspace folders changed');
-	await forEachFolder(e.removed, folder => stopDaemon(folder.uri));
+	await forEachFolder(e.removed, async folder => {
+		await stopDaemon(folder.uri);
+		diagnostics.get(folder.uri)?.dispose();
+		diagnostics.delete(folder.uri);
+	});
 	await migrateDeprecatedSettings(e.added);
 	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
 }
