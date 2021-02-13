@@ -59,6 +59,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
+	context.subscriptions.push(vscode.workspace.onDidDeleteFiles(filesDeleted));
+	context.subscriptions.push(vscode.workspace.onDidRenameFiles(filesRenamed));
+	context.subscriptions.push(vscode.workspace.onDidCreateFiles(filesCreated));
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(configurationChanged));
 }
 
@@ -484,4 +487,32 @@ function warn(warning: string, show=false) {
 	if (show) {
 		vscode.window.showWarningMessage(warning);
 	}
+}
+
+async function filesDeleted(e: vscode.FileDeleteEvent) {
+	await filesChanged(e.files);
+}
+
+async function filesRenamed(e: vscode.FileRenameEvent) {
+	await filesChanged(e.files.map(f => f.newUri));
+}
+
+async function filesCreated(e: vscode.FileCreateEvent) {
+	await filesChanged(e.files);
+}
+
+async function filesChanged(files: readonly vscode.Uri[]) {
+	const folders = new Set<vscode.Uri>()
+	for (let file of files) {
+		const path = file.fsPath;
+		if (path.endsWith(".py") || path.endsWith(".pyi") || isConfigFileName(path)) {
+			const folder = vscode.workspace.getWorkspaceFolder(file);
+			if (folder) {
+				folders.add(folder.uri);
+			}
+		}
+	}
+	const foldersString = Array.from(folders).map(f => f.fsPath).join(", ");
+	outputChannel.appendLine(`Files changed in folders: ${foldersString}`);
+	await forEachFolder(Array.from(folders), folder => checkWorkspace(folder));
 }
