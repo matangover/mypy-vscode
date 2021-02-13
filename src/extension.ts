@@ -321,8 +321,7 @@ function documentSaved(document: vscode.TextDocument): void {
 }
 
 function isMaybeConfigFile(folder: vscode.WorkspaceFolder, file: string) {
-	const name = path.basename(file);
-	if (name == "mypy.ini" || name == ".mypy.ini" || name == "setup.cfg" || name == "config") {
+	if (isConfigFileName(file)) {
 		return true;
 	}
 
@@ -334,6 +333,11 @@ function isMaybeConfigFile(folder: vscode.WorkspaceFolder, file: string) {
 		configFile = path.join(folder.uri.fsPath, configFile);
 	}
 	return path.normalize(configFile) == path.normalize(file);
+}
+
+function isConfigFileName(file: string) {
+	const name = path.basename(file);
+	return name == "mypy.ini" || name == ".mypy.ini" || name == "setup.cfg" || name == "config";
 }
 
 function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
