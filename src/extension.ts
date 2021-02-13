@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	statusBarItem = vscode.window.createStatusBarItem();
 	context.subscriptions.push(statusBarItem);
-	statusBarItem.text = "$(sync~spin) mypy";
+	statusBarItem.text = "$(gear~spin) mypy";
 
 	outputChannel.appendLine('Registering listener for interpreter changed event')
 	const pythonExtension = await getPythonExtension();
