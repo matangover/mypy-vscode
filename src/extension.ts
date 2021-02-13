@@ -191,7 +191,7 @@ async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): P
 	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
 }
 
-async function forEachFolder(folders: readonly vscode.WorkspaceFolder[] | undefined, func: (folder: vscode.WorkspaceFolder) => Promise<any>, ignoreErrors = true) {
+async function forEachFolder<T>(folders: readonly T[] | undefined, func: (folder: T) => Promise<any>, ignoreErrors = true) {
 	if (folders === undefined) {
 		return;
 	}
