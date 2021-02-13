@@ -337,10 +337,14 @@ function isMaybeConfigFile(folder: vscode.WorkspaceFolder, file: string) {
 }
 
 function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
-	if (event.affectsConfiguration("mypy") || event.affectsConfiguration("python.pythonPath")) {
-		outputChannel.appendLine("Mypy settings changed");
-		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
-	}
+	const folders = vscode.workspace.workspaceFolders ?? [];
+	const affectedFolders = folders.filter(folder => (
+		event.affectsConfiguration("mypy", folder) ||
+		event.affectsConfiguration("python.pythonPath", folder)
+	));
+	const affectedFoldersString = affectedFolders.map(f => f.uri.fsPath).join(", ");
+	outputChannel.appendLine(`Mypy settings changed: ${affectedFoldersString}`);
+	forEachFolder(affectedFolders, folder => checkWorkspace(folder.uri));
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
