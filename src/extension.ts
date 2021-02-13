@@ -224,7 +224,8 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 	const activeInterpreter = await getActiveInterpreter(folder);
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let executable: string | undefined;
-	if (mypyConfig.get<boolean>('runUsingActiveInterpreter')) {
+	const runUsingActiveInterpreter = mypyConfig.get<boolean>('runUsingActiveInterpreter');
+	if (runUsingActiveInterpreter) {
 		executable = activeInterpreter;
 		args = ["-m", "mypy.dmypy", ...args];
 		if (executable === undefined) {
@@ -257,12 +258,35 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 				successfulExitCodes
 			}
 		);
+		if (result.code == 1 && result.stderr) {
+			// This might happen when running using `python -m mypy.dmypy` and some error in the
+			// interpreter occurs, such as import error when mypy is not installed.
+			let error = '';
+			if (runUsingActiveInterpreter) {
+				error = 'Probably mypy is not installed in the active interpreter ' +
+					`(${activeInterpreter}). Either install mypy in this interpreter or switch ` +
+					'off the mypy.runUsingActiveInterpreter setting. ';
+			}
+			warn(`Error running mypy in ${folder.fsPath}. ${error}See Output panel for details.`, warnIfFailed);
+			if (result.stdout) {
+				outputChannel.appendLine(`stdout:\n${result.stdout}`);
+			}
+			outputChannel.appendLine(`stderr:\n${result.stderr}`);
+			return { success: false, stdout: result.stdout };
+		}
 		return { success: true, stdout: result.stdout };
 	} catch (ex) {
 		let error = ex.toString();
 		if (ex.name === 'ChildProcessError') {
-			ex = ex as TypeError;
+			if (ex.code !== undefined) {
+				error = `mypy failed with exit code ${ex.code}. See Output panel for details.`;
+			}
 			if (ex.stdout) {
+				if (ex.code == 2 && !ex.stderr && (ex.stdout as string).indexOf('error: invalid syntax') != -1) {
+					// Mypy considers syntax errors as fatal errors (exit code 2). The daemon's return
+					// code is not consistent in this case (sometimes it will return 1).
+					return { success: true, stdout: ex.stdout };
+				}
 				outputChannel.appendLine(`stdout:\n${ex.stdout}`);
 			}
 			if (ex.stderr) {
@@ -272,9 +296,15 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
 					'see Output panel for details. The daemon will be restarted automatically.'
 				}
+				else if ((ex.stderr as string).indexOf('There are no .py[i] files in directory') != -1) {
+					// Swallow this error. This may happen if one workspace folder contains
+					// Python files and another folder doesn't, or if a workspace contains Python
+					// files that are not reachable from the target directory.
+					return { success: true, stdout: '' };
+				}
 			}
 		}
-		warn(`Error running mypy: ${error}`, warnIfFailed);
+		warn(`Error running mypy in ${folder.fsPath}: ${error}`, warnIfFailed);
 		return { success: false, stdout: null };
 	}
 }
