@@ -540,7 +540,8 @@ async function filesDeleted(e: vscode.FileDeleteEvent) {
 }
 
 async function filesRenamed(e: vscode.FileRenameEvent) {
-	await filesChanged(e.files.map(f => f.newUri));
+	const changedUris = e.files.map(f => f.oldUri).concat(...e.files.map(f => f.newUri))
+	await filesChanged(changedUris);
 }
 
 async function filesCreated(e: vscode.FileCreateEvent) {
