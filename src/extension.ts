@@ -295,8 +295,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 				if ((ex.stderr as string).indexOf('Daemon crashed!') != -1) {
 					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
 					'see Output panel for details. The daemon will be restarted automatically.'
-				}
-				else if ((ex.stderr as string).indexOf('There are no .py[i] files in directory') != -1) {
+				} else if ((ex.stderr as string).indexOf('There are no .py[i] files in directory') != -1) {
 					// Swallow this error. This may happen if one workspace folder contains
 					// Python files and another folder doesn't, or if a workspace contains Python
 					// files that are not reachable from the target directory.
@@ -546,10 +545,10 @@ async function filesCreated(e: vscode.FileCreateEvent) {
 async function filesChanged(files: readonly vscode.Uri[]) {
 	const folders = new Set<vscode.Uri>()
 	for (let file of files) {
-		const path = file.fsPath;
-		if (path.endsWith(".py") || path.endsWith(".pyi") || isConfigFileName(path)) {
 			const folder = vscode.workspace.getWorkspaceFolder(file);
 			if (folder) {
+			const path = file.fsPath;
+			if (path.endsWith(".py") || path.endsWith(".pyi") || isMaybeConfigFile(folder, path)) {
 				folders.add(folder.uri);
 			}
 		}
