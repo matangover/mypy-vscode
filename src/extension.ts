@@ -105,7 +105,11 @@ async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.Conf
 
 	migration.needed = true;
 	const dmypyExecutable = path.join(path.dirname(mypylsExecutable), 'dmypy');
-	if (fs.existsSync(dmypyExecutable)) {
+	let dmypyExecutableExpanded = untildify(dmypyExecutable);
+	if (scope !== null) {
+		dmypyExecutableExpanded = dmypyExecutableExpanded.replace('${workspaceFolder}', scope.uri.fsPath);
+	}
+	if (fs.existsSync(dmypyExecutableExpanded)) {
 		await config.update('dmypyExecutable', dmypyExecutable, target);
 		await config.update('executable', undefined, target);
 	} else {
