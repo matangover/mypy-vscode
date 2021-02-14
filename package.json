@@ -29,8 +29,8 @@
                     "default": "",
                     "scope": "resource",
                     "description": "(Deprecated and unused) Path to mypyls executable",
-                    "deprecationMessage": "The mypyls executable is no longer used. Use the new setting instead: mypy.dmypyExecutable",
-                    "markdownDeprecationMessage": "The mypyls executable is no longer used. Use the new setting instead: `#mypy.dmypyExecutable#`"
+                    "deprecationMessage": "The mypyls executable is no longer used. Use mypy.dmypyExecutable instead to point to the dmypy executable.",
+                    "markdownDeprecationMessage": "The mypyls executable is no longer used. Use `#mypy.dmypyExecutable#` instead to point to the dmypy executable."
                 },
                 "mypy.dmypyExecutable": {
                     "type": "string",
