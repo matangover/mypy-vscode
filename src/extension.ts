@@ -82,13 +82,14 @@ async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFold
 		if (migration.failed.length == 0) {
 			vscode.window.showInformationMessage(
 				'The Mypy extension now uses the mypy daemon (dmypy) instead of mypyls. ' +
-				'Your mypy.executable settings have been migrated to the new mypy.dmypyExecutable.'
+				'Your mypy.executable settings have been migrated to the new setting: ' +
+				'mypy.dmypyExecutable.'
 			);
 		} else {
 			vscode.window.showInformationMessage(
 				'The Mypy extension now uses the mypy daemon (dmypy) instead of mypyls. ' +
 				'Please use the new mypy.dmypyExecutable setting instead of mypy.executable. ' +
-				'The deprecated mypy.executable settings was found in: ' +
+				'The deprecated mypy.executable setting was found in: ' +
 				migration.failed.join(", ") + '.'
 			);
 		}
