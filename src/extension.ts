@@ -382,7 +382,7 @@ function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
-	// Don't check the same workspace more than once at the same time.
+	// Don't check the same workspace folder more than once at the same time.
 	await lock.acquire(folder.fsPath, () => checkWorkspaceInternal(folder));
 }
 
