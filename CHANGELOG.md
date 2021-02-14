@@ -20,3 +20,5 @@
   ```
 
 - Support the new interpreter storage in the Python extension (replacement for the `python.pythonPath` setting).
+
+- Support more mypy config file options, e.g. `files` and `strict` (due to using dmypy directly instead of mypyls).
