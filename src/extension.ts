@@ -98,6 +98,12 @@ async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFold
 
 async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.ConfigurationTarget, migration: { needed: boolean; failed: string[]; }, targetLabel: string) {
 	const config = vscode.workspace.getConfiguration('mypy', scope);
+	const dmypySetting = config.inspect<string>('dmypyExecutable');
+	const existingDmypy = getValue(dmypySetting, target);
+	if (existingDmypy !== undefined) {
+		return;
+	}
+
 	const mypylsSetting = config.inspect<string>('executable');
 	const mypylsExecutable = getValue(mypylsSetting, target);
 	if (mypylsExecutable === undefined) {
