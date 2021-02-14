@@ -287,9 +287,10 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 				error = `mypy failed with exit code ${ex.code}. See Output panel for details.`;
 			}
 			if (ex.stdout) {
-				if (ex.code == 2 && !ex.stderr && (ex.stdout as string).indexOf('error: invalid syntax') != -1) {
-					// Mypy considers syntax errors as fatal errors (exit code 2). The daemon's return
-					// code is not consistent in this case (sometimes it will return 1).
+				if (ex.code == 2 && !ex.stderr) {
+					// Mypy considers syntax errors as fatal errors (exit code 2). The daemon's
+					// exit code is inconsistent in this case (e.g. for syntax errors it can return
+					// either 1 or 2).
 					return { success: true, stdout: ex.stdout };
 				}
 				outputChannel.appendLine(`stdout:\n${ex.stdout}`);
