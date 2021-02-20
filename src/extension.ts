@@ -115,7 +115,7 @@ async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.Conf
 	}
 
 	migration.needed = true;
-	const dmypyExecutable = path.join(path.dirname(mypylsExecutable), 'dmypy');
+	const dmypyExecutable = getDmypyExecutableFromMypyls(mypylsExecutable);
 	let dmypyExecutableExpanded = untildify(dmypyExecutable);
 	if (scope !== null) {
 		dmypyExecutableExpanded = dmypyExecutableExpanded.replace('${workspaceFolder}', scope.uri.fsPath);
@@ -150,7 +150,8 @@ async function migrateDefaultMypylsToDmypy() {
 	if (fs.existsSync(mypyls)) {
 		// mypyls is installed in the default location, try using dmypy from the mypyls
 		// installation.
-		const dmypyExecutable = path.join(path.dirname(mypyls), 'dmypy');
+		const dmypyExecutable = getDmypyExecutableFromMypyls(mypyls);
+		output(`Dmypy guess: ${dmypyExecutable}`);
 		if (fs.existsSync(dmypyExecutable)) {
 			await vscode.workspace.getConfiguration('mypy').update(
 				'dmypyExecutable',
@@ -580,4 +581,9 @@ function output(line: string, currentCheck?: number) {
 		line = `[${currentCheck}] ${line}`;
 	}
 	outputChannel.appendLine(line);
+}
+
+function getDmypyExecutableFromMypyls(mypylsExecutable: string): string {
+	const name = (process.platform === 'win32') ? 'dmypy.exe' : 'dmypy';
+	return path.join(path.dirname(mypylsExecutable), name);
 }
