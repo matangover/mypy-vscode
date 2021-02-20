@@ -52,7 +52,7 @@
                 },
                 "mypy.targets": {
                     "type": "array",
-                    "default": [],
+                    "default": ["."],
                     "scope": "resource",
                     "items": {
                         "type": "string"
