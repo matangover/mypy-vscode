@@ -16,19 +16,19 @@ This extension requires mypy to be installed on your system. To install mypy, ru
 By default, this extension relies on having the `dmypy` executable available on your PATH. This should be the case
 if you installed mypy globally. To use a different mypy installation, set the `mypy.dmypyExecutable` setting.
 
-Some people prefer to have mypy installed in each project's virtual environment rather than in a global location. If this is you, you can either set `mypy.dmypyExecutable` for each workspace as desired, or enable `mypy.runUsingActiveInterpreter`.
+Some people prefer to have mypy installed in each project's virtual environment rather than in a global location. To do this, enable `mypy.runUsingActiveInterpreter`.
 
 ## Configuration
 
 To configure mypy, you can create a `mypy.ini` file in your workspace folder (or any of the default locations). See [mypy configuration file](https://mypy.readthedocs.io/en/stable/config_file.html). You can also specify a custom path to `mypy.ini` using the `mypy.configFile` setting.
 
-Use the `mypy.targets` setting to specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. You can also use the `files` option in `mypy.ini` to specify which files mypy should analyze. In that case, you should set `mypy.targets` to an empty array (`[]`).
+Use the `mypy.targets` setting to specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. You may prefer to use the `files` option in `mypy.ini` to specify which files mypy should analyze. In that case, you should set `mypy.targets` to an empty array (`[]`).
 
 ## Note for users upgrading from an older version
 
-Previously, this extension used `mypyls` (the [Mypy Language Server](https://github.com/matangover/mypyls/)). However, this is no longer the case: the extension now uses the mypy daemon directly. See the [change log](https://github.com/matangover/mypy-vscode/blob/master/CHANGELOG.md) for details. If you have previously installed and configured `mypyls`, the extension will continue to use mypy from that same installation. If you want, you can uninstall mypyls and install mypy separately.
+Previously, this extension used `mypyls` (the [Mypy Language Server](https://github.com/matangover/mypyls/)). However, this is no longer the case: the extension now uses the mypy daemon directly. See the [change log](https://github.com/matangover/mypy-vscode/blob/master/CHANGELOG.md) for details. If you have previously installed `mypyls`, the extension will continue to use mypy from that same installation. If you want, you can uninstall mypyls and install mypy separately.
 
-Also, in previous versions this extension automatically enabled mypy's `check_untyped_defs` setting by default (see [documentatation](https://mypy.readthedocs.io/en/stable/config_file.html#confval-check_untyped_defs)). However, for consistency with mypy defaults, the extension no longer does this. To re-enable this option, use the mypy config file.
+Also, in previous versions this extension automatically enabled mypy's `check_untyped_defs` setting by default (see [documentatation](https://mypy.readthedocs.io/en/stable/config_file.html#confval-check_untyped_defs)). However, for consistency with mypy's defaults, the extension no longer does this. To re-enable this option, use the mypy config file.
 
 ## License
 
