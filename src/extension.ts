@@ -58,12 +58,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
-	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged));
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(documentSaved));
-	context.subscriptions.push(vscode.workspace.onDidDeleteFiles(filesDeleted));
-	context.subscriptions.push(vscode.workspace.onDidRenameFiles(filesRenamed));
-	context.subscriptions.push(vscode.workspace.onDidCreateFiles(filesCreated));
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(configurationChanged));
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged),
+		vscode.workspace.onDidSaveTextDocument(documentSaved),
+		vscode.workspace.onDidDeleteFiles(filesDeleted),
+		vscode.workspace.onDidRenameFiles(filesRenamed),
+		vscode.workspace.onDidCreateFiles(filesCreated),
+		vscode.workspace.onDidChangeConfiguration(configurationChanged)
+	);
 }
 
 async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
