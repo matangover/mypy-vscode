@@ -18,7 +18,7 @@ let statusBarItem: vscode.StatusBarItem;
 let activeChecks = 0;
 let checkIndex = 1;
 
-export const mypyOutputPattern = /^(?<file>[^:\n]+):(?<line>\d+)(:(?<column>\d+))?: (?<type>\w+): (?<message>.*)$/mg;
+export const mypyOutputPattern = /^(?<file>[^:\n]+):((?<line>\d+):)?((?<column>\d+):)? (?<type>\w+): (?<message>.*)$/mg;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	_context = context;
