@@ -46,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (pythonExtension !== undefined) {
 		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
 			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
-			_context?.subscriptions.push(handler);
+			context.subscriptions.push(handler);
 			outputChannel.appendLine('Listener registered')
 		}
 	}
@@ -54,6 +54,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
 	if (upgradedFromMypyls) {
+		outputChannel.appendLine('Extension upgraded, migrating settings');
 		await migrateDefaultMypylsToDmypy();
 	}
 
@@ -130,11 +131,13 @@ async function migrate(scope: vscode.WorkspaceFolder | null, target: vscode.Conf
 async function migrateDefaultMypylsToDmypy() {
 	const dmypyUserSetting = vscode.workspace.getConfiguration("mypy").inspect<string>("dmypyExecutable")?.globalValue;
 	if (dmypyUserSetting !== undefined) {
+		// dmypyExecutable is already defined in User settings. Do nothing.
 		return;
 	}
 
 	const dmypyInPath = (await lookpath('dmypy')) !== undefined;
 	if (dmypyInPath) {
+		// dmypy is available on PATH. Notify user and do nothing.
 		vscode.window.showInformationMessage(
 			'The Mypy extension has been updated. It will now use the mypy daemon (found on your ' +
 			'PATH) instead of the mypy language server.'
