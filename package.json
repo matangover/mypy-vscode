@@ -52,7 +52,9 @@
                 },
                 "mypy.targets": {
                     "type": "array",
-                    "default": ["."],
+                    "default": [
+                        "."
+                    ],
                     "scope": "resource",
                     "items": {
                         "type": "string"
@@ -81,7 +83,7 @@
     "dependencies": {
         "async-lock": "^1.2.8",
         "child-process-promise": "^2.2.1",
-        "lookpath": "^1.1.0",
+        "lookpath": "^1.2.0",
         "promise.allsettled": "^1.0.4",
         "semver": "^7.3.2",
         "shlex": "^2.0.2",
