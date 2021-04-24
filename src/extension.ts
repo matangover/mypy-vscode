@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { spawn } from 'child-process-promise';
 import * as fs from 'fs';
 import { lookpath } from 'lookpath';
@@ -243,6 +244,15 @@ async function stopDaemon(folder: vscode.Uri): Promise<void> {
 async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, successfulExitCodes?: number[], addPythonExecutableArgument=false, currentCheck?: number):
 	Promise<{ success: boolean, stdout: string | null }> {
 
+	// Store the dmypy status file in the extension's workspace storage folder, instead of the
+	// default location which is .dmypy.json in the cwd.
+	if (_context?.storageUri !== undefined) {
+		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
+		const folderHash = crypto.createHash('sha1').update(folder.toString()).digest('hex');
+		const statusFileName = `dmypy-${folderHash}.json`;
+		const statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
+		args = ["--status-file", statusFilePath, ...args];
+	}
 	const activeInterpreter = await getActiveInterpreter(folder, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let executable: string | undefined;
