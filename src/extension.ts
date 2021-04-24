@@ -301,7 +301,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 			}
 			warn(
 				`Error running mypy in ${folder.fsPath}. ${error}See Output panel for details.`,
-				warnIfFailed, currentCheck);
+				warnIfFailed, currentCheck, true);
 			if (result.stdout) {
 				output(`stdout:\n${result.stdout}`, currentCheck);
 			}
@@ -311,9 +311,11 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 		return { success: true, stdout: result.stdout };
 	} catch (ex) {
 		let error = ex.toString();
+		let showDetailsButton = false;
 		if (ex.name === 'ChildProcessError') {
 			if (ex.code !== undefined) {
 				error = `mypy failed with exit code ${ex.code}. See Output panel for details.`;
+				showDetailsButton = true;
 			}
 			if (ex.stdout) {
 				if (ex.code == 2 && !ex.stderr) {
@@ -329,6 +331,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 				if ((ex.stderr as string).indexOf('Daemon crashed!') != -1) {
 					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
 					'see Output panel for details. The daemon will be restarted automatically.'
+					showDetailsButton = true;
 				} else if ((ex.stderr as string).indexOf('There are no .py[i] files in directory') != -1) {
 					// Swallow this error. This may happen if one workspace folder contains
 					// Python files and another folder doesn't, or if a workspace contains Python
@@ -337,7 +340,7 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 				}
 			}
 		}
-		warn(`Error running mypy in ${folder.fsPath}: ${error}`, warnIfFailed, currentCheck);
+		warn(`Error running mypy in ${folder.fsPath}: ${error}`, warnIfFailed, currentCheck, showDetailsButton);
 		return { success: false, stdout: null };
 	}
 }
@@ -568,10 +571,14 @@ async function getPythonExtension(currentCheck: number | undefined) {
 	return extension;
 }
 
-function warn(warning: string, show=false, currentCheck?: number) {
+async function warn(warning: string, show=false, currentCheck?: number, detailsButton=false) {
 	output(warning, currentCheck);
 	if (show) {
-		vscode.window.showWarningMessage(warning);
+		const items = detailsButton ? ["Details"] : [];
+		const result = await vscode.window.showWarningMessage(warning, ...items);
+		if (result === "Details") {
+			outputChannel.show();
+		}
 	}
 }
 
