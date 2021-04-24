@@ -19,10 +19,13 @@ let statusBarItem: vscode.StatusBarItem;
 let activeChecks = 0;
 let checkIndex = 1;
 const pythonExtensionInitialized = new Set<vscode.Uri | undefined>();
+let activated = false;
+const DEBUG = false;
 
 export const mypyOutputPattern = /^(?<file>[^:\n]+):((?<line>\d+):)?((?<column>\d+):)? (?<type>\w+): (?<message>.*)$/mg;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	activated = true;
 	_context = context;
 	context.subscriptions.push(outputChannel);
 	const previousVersion = context.globalState.get<string>('extensionVersion');
@@ -34,29 +37,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const currentVersion = extension?.packageJSON.version;
 	context.globalState.update('extensionVersion', currentVersion);
 
-	outputChannel.appendLine(`Mypy extension activated, version ${currentVersion}`);
+	output(`Mypy extension activated, version ${currentVersion}`);
 	if (extension?.extensionKind === vscode.ExtensionKind.Workspace) {
-		outputChannel.appendLine('Running remotely');
+		output('Running remotely');
 	}
 
 	statusBarItem = vscode.window.createStatusBarItem();
 	context.subscriptions.push(statusBarItem);
 	statusBarItem.text = "$(gear~spin) mypy";
 
-	outputChannel.appendLine('Registering listener for interpreter changed event')
+	output('Registering listener for interpreter changed event');
 	const pythonExtension = await getPythonExtension(undefined);
 	if (pythonExtension !== undefined) {
 		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
 			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
 			context.subscriptions.push(handler);
-			outputChannel.appendLine('Listener registered')
+			output('Listener registered');
 		}
 	}
 	// TODO: add 'Mypy: recheck workspace' command.
 
 	await migrateDeprecatedSettings(vscode.workspace.workspaceFolders);
 	if (upgradedFromMypyls) {
-		outputChannel.appendLine('Extension upgraded, migrating settings');
+		output('Extension upgraded, migrating settings');
 		await migrateDefaultMypylsToDmypy();
 	}
 
@@ -195,14 +198,15 @@ function getValue<T>(
 }
 
 export async function deactivate(): Promise<void> {
-	outputChannel.appendLine(`Mypy extension deactivating, shutting down daemons...`);
+	activated = false;
+	output(`Mypy extension deactivating, shutting down daemons...`);
 	await forEachFolder(vscode.workspace.workspaceFolders, folder => stopDaemon(folder.uri));
-	outputChannel.appendLine(`Mypy daemons stopped, extension deactivated`);
+	output(`Mypy daemons stopped, extension deactivated`);
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
 	const format = (folders: readonly vscode.WorkspaceFolder[]) => folders.map(f => f.name).join(", ") || "none";
-	outputChannel.appendLine(`Workspace folders changed. Added: ${format(e.added)}. Removed: ${format(e.removed)}.`);
+	output(`Workspace folders changed. Added: ${format(e.added)}. Removed: ${format(e.removed)}.`);
 
 	await forEachFolder(e.removed, async folder => {
 		await stopDaemon(folder.uri);
@@ -235,10 +239,32 @@ async function forEachFolder<T>(folders: readonly T[] | undefined, func: (folder
 }
 
 
-async function stopDaemon(folder: vscode.Uri): Promise<void> {
-	outputChannel.appendLine(`Stop daemon: ${folder.fsPath}`);
+async function stopDaemon(folder: vscode.Uri, retry=true): Promise<void> {
+	output(`Stop daemon: ${folder.fsPath}`);
 
-	await runDmypy(folder, ['stop']);
+	const result = await runDmypy(folder, ['stop']);
+	if (result.success) {
+		output(`Stopped daemon: ${folder.fsPath}`);
+	} else {
+		if (retry) {
+			// Daemon stopping can fail with 'Status file not found' if the daemon has been started
+			// very recently and hasn't written the status file yet. In that case, retry, otherwise
+			// we might leave a zombie daemon running. This happened due to the following events:
+			// 1. Open folder in VS Code, and then add another workspace folder
+			// 2. VS Code fires onDidChangeWorkspaceFolders and onDidChangeConfiguration, which
+			//	  causes us to queue two checks. (This is probably a bug in VS Code.)
+			// 3. VS Code immediately restarts the Extension Host process, which causes our
+			//    extension to deactivate.
+			// 4. We try to stop the daemon but it is not yet running. We then start the daemon
+			//    because of the queued check(s), which results in a zombie daemon.
+			// This simple retry solves the issue.
+			output(`Daemon stopping failed, retrying in 1 second: ${folder.fsPath}`);
+			await sleep(1000);
+			await stopDaemon(folder, false);
+		} else {
+			output(`Daemon stopping failed again, giving up: ${folder.fsPath}`);
+		}
+	}
 }
 
 async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, successfulExitCodes?: number[], addPythonExecutableArgument=false, currentCheck?: number):
@@ -381,7 +407,7 @@ function documentSaved(document: vscode.TextDocument): void {
 	}
 
 	if (document.languageId == "python" || isMaybeConfigFile(folder, document.fileName)) {
-		outputChannel.appendLine(`Document saved: ${document.uri.fsPath}`);
+		output(`Document saved: ${document.uri.fsPath}`);
 		checkWorkspace(folder.uri);
 	}
 }
@@ -413,7 +439,7 @@ function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 		event.affectsConfiguration("python.pythonPath", folder)
 	));
 	const affectedFoldersString = affectedFolders.map(f => f.uri.fsPath).join(", ");
-	outputChannel.appendLine(`Mypy settings changed: ${affectedFoldersString}`);
+	output(`Mypy settings changed: ${affectedFoldersString}`);
 	forEachFolder(affectedFolders, folder => checkWorkspace(folder.uri));
 }
 
@@ -423,6 +449,13 @@ async function checkWorkspace(folder: vscode.Uri) {
 }
 
 async function checkWorkspaceInternal(folder: vscode.Uri) {
+	if (!activated) {
+		// This can happen if a check was queued right before the extension was deactivated.
+		// We don't want to check in that case since it would cause a zombie daemon.
+		output(`Extension is not activated, not checking: ${folder.fsPath}`);
+		return;
+	}
+
 	statusBarItem.show();
 	activeChecks++;
 	const currentCheck = checkIndex;
@@ -541,7 +574,7 @@ async function getPythonPathFromPythonExtension(
 }
 
 function activeInterpreterChanged(resource: vscode.Uri | undefined) {
-	outputChannel.appendLine(`Active interpreter changed for resource: ${resource?.fsPath}`);
+	output(`Active interpreter changed for resource: ${resource?.fsPath}`);
 	if (resource === undefined) {
 		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
 	} else {
@@ -607,13 +640,18 @@ async function filesChanged(files: readonly vscode.Uri[]) {
 		}
 	}
 	const foldersString = Array.from(folders).map(f => f.fsPath).join(", ");
-	outputChannel.appendLine(`Files changed in folders: ${foldersString}`);
+	output(`Files changed in folders: ${foldersString}`);
 	await forEachFolder(Array.from(folders), folder => checkWorkspace(folder));
 }
 
 function output(line: string, currentCheck?: number) {
 	if (currentCheck !== undefined) {
 		line = `[${currentCheck}] ${line}`;
+	}
+	if (DEBUG) {
+		var tzoffset = (new Date()).getTimezoneOffset() * 60000;
+		var localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, -1);
+		fs.appendFileSync("/tmp/log.txt", `${localISOTime} [${process.pid}] ${line}\n`);
 	}
 	outputChannel.appendLine(line);
 }
@@ -625,4 +663,4 @@ function getDmypyExecutableFromMypyls(mypylsExecutable: string): string {
 
 function sleep(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
-}  
+}
