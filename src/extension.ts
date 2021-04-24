@@ -17,6 +17,7 @@ let lock = new AsyncLock();
 let statusBarItem: vscode.StatusBarItem;
 let activeChecks = 0;
 let checkIndex = 1;
+const pythonExtensionInitialized = new Set<vscode.Uri | undefined>();
 
 export const mypyOutputPattern = /^(?<file>[^:\n]+):((?<line>\d+):)?((?<column>\d+):)? (?<type>\w+): (?<message>.*)$/mg;
 
@@ -199,11 +200,14 @@ export async function deactivate(): Promise<void> {
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
-	outputChannel.appendLine('Workspace folders changed');
+	const format = (folders: readonly vscode.WorkspaceFolder[]) => folders.map(f => f.name).join(", ") || "none";
+	outputChannel.appendLine(`Workspace folders changed. Added: ${format(e.added)}. Removed: ${format(e.removed)}.`);
+
 	await forEachFolder(e.removed, async folder => {
 		await stopDaemon(folder.uri);
 		diagnostics.get(folder.uri)?.dispose();
 		diagnostics.delete(folder.uri);
+		pythonExtensionInitialized.delete(folder.uri);
 	});
 	await migrateDeprecatedSettings(e.added);
 	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
@@ -497,6 +501,20 @@ async function getPythonPathFromPythonExtension(
 			result = execDetails.execCommand[0];
 		}
 
+		if (result === "python" && !pythonExtensionInitialized.has(scopeUri)) {
+			// There is a bug in the Python extension which returns sometimes 'python'
+			// while the extension is initializing. This can cause ugly errors when the mypy
+			// extension runs before the interpreter is initialized.
+			// See https://github.com/microsoft/vscode-python/issues/15467
+			// Give the Python extension 5 more seconds to properly load (hopefully).
+			output(`Got 'python' as Python path, giving the Python extension 5 more seconds to load`, currentCheck);
+			await sleep(5000);
+			pythonExtensionInitialized.add(scopeUri);
+			return getPythonPathFromPythonExtension(scopeUri, currentCheck)
+		} else {
+			pythonExtensionInitialized.add(scopeUri);
+		}
+
 		output(`Received python path from Python extension: ${result}`, currentCheck);
 		return result;
     } catch (error) {
@@ -587,3 +605,7 @@ function getDmypyExecutableFromMypyls(mypylsExecutable: string): string {
 	const name = (process.platform === 'win32') ? 'dmypy.exe' : 'dmypy';
 	return path.join(path.dirname(mypylsExecutable), name);
 }
+
+function sleep(ms: number) {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}  
