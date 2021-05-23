@@ -625,19 +625,31 @@ async function filesRenamed(e: vscode.FileRenameEvent) {
 }
 
 async function filesCreated(e: vscode.FileCreateEvent) {
-	await filesChanged(e.files);
+	await filesChanged(e.files, true);
 }
 
-async function filesChanged(files: readonly vscode.Uri[]) {
+async function filesChanged(files: readonly vscode.Uri[], created = false) {
 	const folders = new Set<vscode.Uri>()
 	for (let file of files) {
 		const folder = vscode.workspace.getWorkspaceFolder(file);
-		if (folder) {
-			const path = file.fsPath;
-			if (path.endsWith(".py") || path.endsWith(".pyi") || isMaybeConfigFile(folder, path)) {
+		if (folder === undefined)
+			continue;
+		
+		const path = file.fsPath;
+		if (path.endsWith(".py") || path.endsWith(".pyi")) {
+			folders.add(folder.uri);
+		} else if (isMaybeConfigFile(folder, path)) {
+			// Don't trigger mypy run if config file has just been created and is empty, because
+			// mypy would error. Give the user a chance to edit the file.
+			const justCreatedAndEmpty = created && fs.statSync(path).size === 0;
+			if (!justCreatedAndEmpty) {
 				folders.add(folder.uri);
 			}
 		}
+	}
+
+	if (folders.size === 0) {
+		return;
 	}
 	const foldersString = Array.from(folders).map(f => f.fsPath).join(", ");
 	output(`Files changed in folders: ${foldersString}`);
