@@ -239,20 +239,11 @@ async function forEachFolder<T>(folders: readonly T[] | undefined, func: (folder
 	}
 }
 
-function mkStoragePath(folder: vscode.Uri, namer: (folderHash: string) => string): string | undefined {
-	if (_context?.storageUri !== undefined) {
-		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
-		const folderHash = crypto.createHash('sha1').update(folder.toString()).digest('hex');
-		const fileName = namer(folderHash);
-		return path.join(_context.storageUri.fsPath, fileName);
-	}
-	return undefined;
-}
 
 async function stopDaemon(folder: vscode.Uri, retry=true): Promise<void> {
 	output(`Stop daemon: ${folder.fsPath}`);
 
-	const result = await execDmypy({ folder, dmypyArgs: ['stop'] });
+	const result = await runDmypy(folder, 'stop');
 	if (result.success) {
 		output(`Stopped daemon: ${folder.fsPath}`);
 	} else {
@@ -277,68 +268,44 @@ async function stopDaemon(folder: vscode.Uri, retry=true): Promise<void> {
 	}
 }
 
-type DmypyMode = 'start' | 'restart' | 'status' | 'stop' | 'kill' | 'check' | 'run' | 'recheck' | 'suggest' | 'hang' | 'daemon' | 'help'
+type DmypyCommand = 'start' | 'restart' | 'status' | 'stop' | 'kill' | 'check' | 'run' | 'recheck' | 'suggest' | 'hang' | 'daemon' | 'help';
 
-interface DmypyExecConfig {
+async function runDmypy(
 	folder: vscode.Uri,
-	dmypyArgs: [DmypyMode, ...string[]],
-	warnIfFailed?: boolean,
-	successfulExitCodes?: number[],
-	addPythonExecutableArgument?: boolean,
-	currentCheck?: number,
-}
-
-interface DmypyRunConfig {
-	folder: vscode.Uri,
-	mypyArgs: string[],
-	currentCheck?: number,
-}
-
-async function runDmypy({
-	folder,
-	mypyArgs,
-	currentCheck,
-}: DmypyRunConfig): Promise<{ success: boolean, stdout: string | null }> {
-	let runArgs = ['--', ...mypyArgs];
-	const logfile = mkStoragePath(folder, folderHash => `dmypy-${folderHash}.log`);
-	if(logfile !== undefined) {
-		// --log-file <logfile> must come before '--' but after 'run'
-		runArgs = ['--log-file', logfile, ...runArgs];
-	}
-
-	return execDmypy({
-		folder,
-		dmypyArgs: ['run', ...runArgs],
-		warnIfFailed: true,
-		successfulExitCodes: [0, 1],
-		addPythonExecutableArgument: true,
-		currentCheck,
-	});
-}
-
-async function execDmypy({
-	folder,
-	dmypyArgs,
+	dmypyCommand: DmypyCommand,
+	mypyArgs: string[] = [],
 	warnIfFailed = false,
-	successfulExitCodes,
+	successfulExitCodes?: number[],
 	addPythonExecutableArgument = false,
-	currentCheck
-}: DmypyExecConfig): Promise<{ success: boolean, stdout: string | null }> {
+	currentCheck?: number,
+): Promise<{ success: boolean, stdout: string | null }> {
 
-	let args: string[] = dmypyArgs;
+	let dmypyGlobalArgs: string[] = [];
+	let dmypyCommandArgs: string[] = [];
 	// Store the dmypy status file in the extension's workspace storage folder, instead of the
 	// default location which is .dmypy.json in the cwd.
-	const statusFilePath = mkStoragePath(folder, folderHash => `dmypy-${folderHash}.json`);
-	if (statusFilePath !== undefined) {
-		args = ["--status-file", statusFilePath, ...args];
+	if (_context?.storageUri !== undefined) {
+		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
+		const folderHash = crypto.createHash('sha1').update(folder.toString()).digest('hex');
+		const statusFileName = `dmypy-${folderHash}.json`;
+		const statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
+		dmypyGlobalArgs = ["--status-file", statusFilePath];
+		const commandsSupportingLog: DmypyCommand[] = ["start", "restart", "run"];
+		if (commandsSupportingLog.includes(dmypyCommand)) {
+			const logFileName = `dmypy-${folderHash}.log`;
+			const logFilePath = path.join(_context.storageUri.fsPath, logFileName);
+			dmypyCommandArgs = ['--log-file', logFilePath];
+		}
 	}
+
 	const activeInterpreter = await getActiveInterpreter(folder, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let executable: string | undefined;
 	const runUsingActiveInterpreter = mypyConfig.get<boolean>('runUsingActiveInterpreter');
+	let executionArgs: string[] = [];
 	if (runUsingActiveInterpreter) {
 		executable = activeInterpreter;
-		args = ["-m", "mypy.dmypy", ...args];
+		executionArgs = ["-m", "mypy.dmypy"];
 		if (executable === undefined) {
 			warn(
 				"Could not run mypy: no active interpreter. Please activate an interpreter or " +
@@ -354,9 +321,13 @@ async function execDmypy({
 	}
 
 	if (addPythonExecutableArgument && activeInterpreter) {
-		args = [...args, '--python-executable', activeInterpreter];
+		mypyArgs = [...mypyArgs, '--python-executable', activeInterpreter];
 	}
 
+	const args = [...executionArgs, ...dmypyGlobalArgs, dmypyCommand, ...dmypyCommandArgs];
+	if (mypyArgs.length > 0) {
+		args.push("--", ...mypyArgs);
+	}
 	const command = [executable, ...args].map(quote).join(" ");
 	output(`Running dmypy in folder ${folder.fsPath}\n${command}`, currentCheck);
 	try {
@@ -530,17 +501,21 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	output(`Check workspace: ${folder.fsPath}`, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output']
+	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output'];
 	const configFile = mypyConfig.get<string>("configFile");
 	if (configFile) {
 		output(`Using config file: ${configFile}`, currentCheck);
 		mypyArgs.push('--config-file', configFile);
 	}
-	const result = await runDmypy({
+	const result = await runDmypy(
 		folder,
+		'run',
 		mypyArgs,
-		currentCheck,
-	});
+		true,
+		[0, 1],
+		true,
+		currentCheck
+	);
 
 	activeChecks--;
 	if (activeChecks == 0) {
