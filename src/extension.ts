@@ -23,6 +23,7 @@ let activated = false;
 const DEBUG = false;
 
 export const mypyOutputPattern = /^(?<file>[^:\n]+):((?<line>\d+):)?((?<column>\d+):)? (?<type>\w+): (?<message>.*)$/mg;
+type ChildProcessError = {code: number | undefined, stdout: string | undefined, stderr: string | undefined};
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	activated = true;
@@ -335,12 +336,25 @@ async function runDmypy(folder: vscode.Uri, args: string[], warnIfFailed=false, 
 			return { success: false, stdout: result.stdout };
 		}
 		return { success: true, stdout: result.stdout };
-	} catch (ex) {
-		let error = ex.toString();
+	} catch (exception) {
+		let error = exception.toString();
 		let showDetailsButton = false;
-		if (ex.name === 'ChildProcessError') {
+		if (exception.name === 'ChildProcessError') {
+			const ex = exception as ChildProcessError;
 			if (ex.code !== undefined) {
-				error = `mypy failed with exit code ${ex.code}. See Output panel for details.`;
+				let errorString;
+				if (ex.stderr) {
+					// Show only first line of error to user because Newlines are stripped in VSCode
+					// warning messages and it can appear confusing.
+					let mypyError = ex.stderr.split("\n")[0];
+					if (mypyError.length > 300) {
+						mypyError = mypyError.slice(0, 300) + " [...]";
+					}
+					errorString = `error: "${mypyError}"`;
+				} else {
+					errorString = `exit code ${ex.code}`;
+				}
+				error = `mypy failed with ${errorString}. See Output panel for details.`;
 				showDetailsButton = true;
 			}
 			if (ex.stdout) {
