@@ -2,7 +2,7 @@
 
 ## 0.2.0
 
-- The extension no longer uses `mypyls` (the mypy language server). We now use the mypy daemon (`dmypy`) which is built into mypy. This leads to less maintenance burden, full mypy feature support, an easier installation.
+- The extension no longer uses `mypyls` (the mypy language server). We now use the mypy daemon (`dmypy`) which is built into mypy. This leads to less maintenance burden, full mypy feature support, and easier installation.
 
 - The `mypy.executable` setting is now deprecated (because it used to point to mypyls which is no longer used). Use the new `mypy.dmypyExecutable` instead (which points to dmypy). The extension will attempt to migrate your settings automatically if needed.
 
