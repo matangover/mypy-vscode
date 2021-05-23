@@ -5,10 +5,10 @@
     "author": "Matan Gover",
     "repository": "https://github.com/matangover/mypy-vscode",
     "license": "MIT",
-    "version": "0.1.5",
+    "version": "0.2.0",
     "publisher": "matangover",
     "engines": {
-        "vscode": "^1.30.0"
+        "vscode": "^1.46.0"
     },
     "categories": [
         "Programming Languages",
@@ -27,18 +27,35 @@
                 "mypy.executable": {
                     "type": "string",
                     "default": "",
-                    "description": "Path to mypyls executable (see extension installation instructions). If left empty, the default path is used (for Unix: ~/.mypyls/bin/mypyls, for Windows: %USERPROFILE%\\.mypyls\\Scripts\\mypyls.exe)."
+                    "scope": "resource",
+                    "description": "(Deprecated and unused) Path to mypyls executable",
+                    "deprecationMessage": "The mypyls executable is no longer used. Use mypy.dmypyExecutable instead to point to the dmypy executable.",
+                    "markdownDeprecationMessage": "The mypyls executable is no longer used. Use `#mypy.dmypyExecutable#` instead to point to the dmypy executable."
+                },
+                "mypy.dmypyExecutable": {
+                    "type": "string",
+                    "default": "dmypy",
+                    "scope": "resource",
+                    "markdownDescription": "Path to `dmypy` (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: `${workspaceFolder}` and `~` (home directory)."
+                },
+                "mypy.runUsingActiveInterpreter": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "markdownDescription": "Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the `mypy.dmypyExecutable` setting. Note: your code is always checked against the active interpreter – this setting only controls the interpreter used to run dmypy itself."
                 },
                 "mypy.configFile": {
                     "type": "string",
                     "default": "",
-                    "description": "Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html."
+                    "scope": "resource",
+                    "markdownDescription": "Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html."
                 },
                 "mypy.targets": {
                     "type": "array",
                     "default": [
                         "."
                     ],
+                    "scope": "resource",
                     "items": {
                         "type": "string"
                     },
@@ -48,20 +65,28 @@
             }
         }
     },
-    "main": "./out/extension",
+    "main": "./out/extension.js",
     "scripts": {
-        "vscode:prepublish": "tsc -p ./",
-        "compile": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "vscode": "npm run vscode:prepublish && VSCODE=$(which code-insiders || which code || echo echo ERROR: neither the code nor code-insiders vscode executable is installed); USER=dummy-dont-share-vscode-instance $VSCODE --user-data-dir=$PWD/.vscode-dev/user-data --extensionHomePath=$PWD/.vscode-dev/extensions --extensionDevelopmentPath=$PWD $*"
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
     },
     "devDependencies": {
-        "@types/node": "^6.0.40",
-        "typescript": "^2.3.4",
-        "vscode": "^1.1.21"
+        "@types/async-lock": "^1.1.2",
+        "@types/child-process-promise": "^2.2.1",
+        "@types/node": "^12.11.7",
+        "@types/promise.allsettled": "^1.0.3",
+        "@types/semver": "^7.3.4",
+        "@types/vscode": "^1.46.0",
+        "typescript": "^4.0.2"
     },
     "dependencies": {
-        "untildify": "^4.0.0",
-        "vscode-languageclient": "^5.2.1"
+        "async-lock": "^1.2.8",
+        "child-process-promise": "^2.2.1",
+        "lookpath": "^1.2.0",
+        "promise.allsettled": "^1.0.4",
+        "semver": "^7.3.2",
+        "shlex": "^2.0.2",
+        "untildify": "^4.0.0"
     }
 }
