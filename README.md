@@ -22,7 +22,16 @@ Some people prefer to have mypy installed in each project's virtual environment 
 
 To configure mypy, you can create a `mypy.ini` file in your workspace folder (or any of the default locations). See [mypy configuration file](https://mypy.readthedocs.io/en/stable/config_file.html). You can also specify a custom path to `mypy.ini` using the `mypy.configFile` setting.
 
-Use the `mypy.targets` setting to specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. You may prefer to use the `files` option in `mypy.ini` to specify which files mypy should analyze. In that case, you should set `mypy.targets` to an empty array (`[]`).
+To configure the mypy-vscode extension, use the following VS Code settings:
+
+* `mypy.targets`: specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. You may prefer to use the `files` option in `mypy.ini` to specify which files mypy should analyze. In that case, you should set `mypy.targets` to an empty array (`[]`).
+
+* `mypy.dmypyExecutable`: Path to `dmypy` (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: `${workspaceFolder}` and `~` (home directory).
+
+* `mypy.runUsingActiveInterpreter`: Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the `mypy.dmypyExecutable` setting. Note: your code is always checked against the active interpreter – this setting only controls the interpreter used to run dmypy itself.
+
+* `mypy.configFile`: Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html.
+
 
 ## Note for users upgrading from an older version
 
