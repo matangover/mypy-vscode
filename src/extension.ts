@@ -501,7 +501,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	output(`Check workspace: ${folder.fsPath}`, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output'];
+	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output', '--show-absolute-path'];
 	const configFile = mypyConfig.get<string>("configFile");
 	if (configFile) {
 		output(`Using config file: ${configFile}`, currentCheck);
@@ -532,7 +532,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		let match: RegExpExecArray | null;
 		while ((match = mypyOutputPattern.exec(result.stdout)) !== null) {
 			const groups = match.groups as { file: string, line: string, column?: string, type: string, message: string };
-			const fileUri = vscode.Uri.file(path.join(folder.fsPath, groups.file));
+			const fileUri = groups.file;
 			if (!fileDiagnostics.has(fileUri)) {
 				fileDiagnostics.set(fileUri, []);
 			}
