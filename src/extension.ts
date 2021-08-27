@@ -533,10 +533,10 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		while ((match = mypyOutputPattern.exec(result.stdout)) !== null) {
 			const groups = match.groups as { file: string, line: string, column?: string, type: string, message: string };
 			let filePath = groups.file;
-      if (!groups.file.includes(folder.fsPath)) {
+			if (!groups.file.includes(folder.fsPath)) {
 				filePath = path.join(folder.fsPath, groups.file);
-      }
-      const fileUri = vscode.Uri.file(filePath);
+			}
+			const fileUri = vscode.Uri.file(filePath);
 			if (!fileDiagnostics.has(fileUri)) {
 				fileDiagnostics.set(fileUri, []);
 			}
