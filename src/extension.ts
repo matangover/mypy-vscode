@@ -532,9 +532,11 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		let match: RegExpExecArray | null;
 		while ((match = mypyOutputPattern.exec(result.stdout)) !== null) {
 			const groups = match.groups as { file: string, line: string, column?: string, type: string, message: string };
+			// By default mypy outputs paths relative to the checked folder. If the user specifies
+			// `show_absolute_path = True` in the config file, mypy outputs absolute paths.
 			let filePath = groups.file;
-			if (!groups.file.includes(folder.fsPath)) {
-				filePath = path.join(folder.fsPath, groups.file);
+			if (!path.isAbsolute(filePath)) {
+				filePath = path.join(folder.fsPath, filePath);
 			}
 			const fileUri = vscode.Uri.file(filePath);
 			if (!fileDiagnostics.has(fileUri)) {
