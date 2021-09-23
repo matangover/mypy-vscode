@@ -359,7 +359,7 @@ async function runDmypy(
 			return { success: false, stdout: result.stdout };
 		}
 		return { success: true, stdout: result.stdout };
-	} catch (exception) {
+	} catch (exception: any) {
 		let error = exception.toString();
 		let showDetailsButton = false;
 		if (exception.name === 'ChildProcessError') {
