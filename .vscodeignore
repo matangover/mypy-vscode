@@ -1,6 +1,7 @@
 .vscode/**
 typings/**
 out/test/**
+out/*.test.*
 test/**
 src/**
 .vscode-dev/**

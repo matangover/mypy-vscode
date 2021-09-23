@@ -10,6 +10,7 @@ import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
 import {PromiseRejection} from 'promise.allsettled';
+import {mypyOutputPattern} from './mypy';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
@@ -22,7 +23,6 @@ const pythonExtensionInitialized = new Set<vscode.Uri | undefined>();
 let activated = false;
 const DEBUG = false;
 
-export const mypyOutputPattern = /^(?<file>[^:\n]+):((?<line>\d+):)?((?<column>\d+):)? (?<type>\w+): (?<message>.*)$/mg;
 type ChildProcessError = {code: number | undefined, stdout: string | undefined, stderr: string | undefined};
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
