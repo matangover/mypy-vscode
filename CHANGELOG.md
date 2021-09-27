@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.2.1
+
+- Do not fail when `show_absolute_path = True` is specified in the mypy configuration file (#38, PR by @sidharthv96).
+
 ## 0.2.0
 
 - The extension no longer uses `mypyls` (the mypy language server). We now use the mypy daemon (`dmypy`) which is built into mypy. This leads to less maintenance burden, full mypy feature support, and easier installation.
