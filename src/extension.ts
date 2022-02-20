@@ -70,7 +70,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.workspace.onDidDeleteFiles(filesDeleted),
 		vscode.workspace.onDidRenameFiles(filesRenamed),
 		vscode.workspace.onDidCreateFiles(filesCreated),
-		vscode.workspace.onDidChangeConfiguration(configurationChanged)
+		vscode.workspace.onDidChangeConfiguration(configurationChanged),
+		vscode.workspace.onDidOpenTextDocument(textDocumentOpened)
 	);
 }
 
@@ -564,7 +565,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 			const line = parseInt(groups.line) - 1;
 			const column = parseInt(groups.column || '1') - 1;
 			const diagnostic = new vscode.Diagnostic(
-				new vscode.Range(line, column, line, column),
+				getDiagnosticRange(line, column, fileUri),
 				groups.message,
 				groups.type === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Information
 			);
@@ -573,6 +574,21 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		}
 		diagnostics.set(Array.from(fileDiagnostics.entries()));
 	}
+}
+
+function getDiagnosticRange(line: number, column: number, fileUri: vscode.Uri) {
+	// VS Code used to expand markers with empty ranges to the word at that position.
+	// Starting with the following commit, this behavior was disabled:
+	// https://github.com/microsoft/vscode/commit/7443621e3b4366b7dabca94b0ba988cf8f47e164
+	// So we try to do it ourselves, since mypy does not supply end column for its diagnostics.
+	const position = new vscode.Position(line, column);
+	// Note: on case-insensitive file systems, this may not work correctly.
+	// The document will only be found if it is currently opened.
+	// If it's not currently opened, this will be handled in the onDidOpenTextDocument handler.
+	const document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() == fileUri.toString());
+	let word = document?.getWordRangeAtPosition(position);
+	const emptyRange = new vscode.Range(position, position);
+	return word ?? emptyRange;
 }
 
 function getWorkspaceDiagnostics(folder: vscode.Uri): vscode.DiagnosticCollection {
@@ -750,3 +766,30 @@ function getDmypyExecutableFromMypyls(mypylsExecutable: string): string {
 function sleep(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
+
+function textDocumentOpened(document: vscode.TextDocument) {
+	const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+	if (!folder) {
+		return;
+	}
+	const workspaceDiagnostics = getWorkspaceDiagnostics(folder.uri);
+	const documentDiagnostics = workspaceDiagnostics.get(document.uri);
+	if (!documentDiagnostics) {
+		return;
+	}
+	let adjusted = false;
+	for (let diagnostic of documentDiagnostics) {
+		if (diagnostic.range.isEmpty) {
+			const word = document.getWordRangeAtPosition(diagnostic.range.start);
+			if (word && !word.isEqual(diagnostic.range)) {
+				// output(`Adjusted ${document.uri.fsPath} line ${diagnostic.range.start.line}: from ${diagnostic.range.start.character} to ${word.start.character}-${word.end.character}`);
+				diagnostic.range = word;
+				adjusted = true;
+			}
+		}
+	}
+	if (adjusted) {
+		workspaceDiagnostics.set(document.uri, documentDiagnostics);
+	}
+}
+
