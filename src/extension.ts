@@ -9,7 +9,6 @@ import * as semver from 'semver';
 import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
-import {PromiseRejection} from 'promise.allsettled';
 import {mypyOutputPattern} from './mypy';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
@@ -219,7 +218,8 @@ async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): P
 	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
 }
 
-async function forEachFolder<T>(folders: readonly T[] | undefined, func: (folder: T) => Promise<any>, ignoreErrors = true) {
+async function forEachFolder<T extends vscode.Uri | vscode.WorkspaceFolder>(
+	folders: readonly T[] | undefined, func: (folder: T) => Promise<any>, ignoreErrors = true) {
 	if (folders === undefined) {
 		return;
 	}
@@ -228,14 +228,32 @@ async function forEachFolder<T>(folders: readonly T[] | undefined, func: (folder
 	// Use allSettled instead of Promise.all to always await all Promises, even if one rejects.
 	const promises = folders.map(func);
 	const results = await allSettled(promises);
-	if (ignoreErrors) {
-		return;
+	const rejections = [];
+	for (const [index, result] of results.entries()) {
+		if (result.status === "rejected") {
+			const folder: vscode.Uri | vscode.WorkspaceFolder = folders[index];
+			const folderUri = folder instanceof vscode.Uri ? folder : folder.uri;
+			rejections.push({
+				folder: folderUri.fsPath,
+				error: result.reason
+			})
+		}
 	}
-	
-	const rejections = results.filter(r => r.status === "rejected");
-	const errors = rejections.map(r => (r as PromiseRejection<any>).reason);
-	if (errors.length > 0) {
-		throw errors;
+	if (rejections.length > 0) {
+		if (ignoreErrors) {
+			const errorString = rejections.map(r => `${r.folder}: ${errorToString(r.error)}`).join("\n");
+			output("forEachFolder ignored errors in the following folders:\n" + errorString);
+		} else {
+			throw rejections;
+		}
+	}
+}
+
+function errorToString(error: unknown) {
+	if (error instanceof Error && error.stack) {
+		return error.stack;
+	} else {
+		return String(error);
 	}
 }
 
@@ -716,7 +734,12 @@ function output(line: string, currentCheck?: number) {
 		var localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, -1);
 		fs.appendFileSync("/tmp/log.txt", `${localISOTime} [${process.pid}] ${line}\n`);
 	}
-	outputChannel.appendLine(line);
+	try {
+		outputChannel.appendLine(line);
+	} catch (e) {
+		// Ignore error. This can happen when VS Code is closing and it calls our deactivate
+		// function, and the output channel is already closed.
+	}
 }
 
 function getDmypyExecutableFromMypyls(mypylsExecutable: string): string {
