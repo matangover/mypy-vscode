@@ -650,7 +650,7 @@ async function getPythonPathFromPythonExtension(
 		return result;
     } catch (error) {
         output(
-            `Exception when reading python path from Python extension: ${JSON.stringify(error)}`,
+            `Exception when reading python path from Python extension: ${errorToString(error)}`,
 			currentCheck
         );
     }
