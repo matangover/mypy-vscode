@@ -494,6 +494,9 @@ function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 		event.affectsConfiguration("mypy", folder) ||
 		event.affectsConfiguration("python.pythonPath", folder)
 	));
+	if (affectedFolders.length === 0) {
+		return;
+	}
 	const affectedFoldersString = affectedFolders.map(f => f.uri.fsPath).join(", ");
 	output(`Mypy settings changed: ${affectedFoldersString}`);
 	forEachFolder(affectedFolders, folder => checkWorkspace(folder.uri));
