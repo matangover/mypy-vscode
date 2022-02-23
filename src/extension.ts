@@ -67,7 +67,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await migrateDefaultMypylsToDmypy();
 	}
 
-	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged),
 		vscode.workspace.onDidSaveTextDocument(documentSaved),
@@ -76,6 +75,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.workspace.onDidCreateFiles(filesCreated),
 		vscode.workspace.onDidChangeConfiguration(configurationChanged)
 	);
+	// Do _not_ await this call on purpose, so that extension activation finishes quickly. This is
+	// important because if VS Code is closed before the checks are done, deactivate will only be
+	// called if activate has already finished.
+	forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
+	output('Activation complete');
 }
 
 function initDebugLog(context: vscode.ExtensionContext) {
