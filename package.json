@@ -61,6 +61,12 @@
                     },
                     "uniqueItems": true,
                     "description": "List of paths to analyze, relative to the workspace folder. By default, check the entire workspace folder."
+                },
+                "mypy.debugLogging": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "window",
+                    "markdownDescription": "Enable debug logging for the extension. (Reload the window after changing this setting.)"
                 }
             }
         }

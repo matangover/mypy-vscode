@@ -13,14 +13,14 @@ import {mypyOutputPattern} from './mypy';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
-let _context: vscode.ExtensionContext | null;
+let _context: vscode.ExtensionContext | undefined;
 let lock = new AsyncLock();
-let statusBarItem: vscode.StatusBarItem;
+let statusBarItem: vscode.StatusBarItem | undefined;
 let activeChecks = 0;
 let checkIndex = 1;
 const pythonExtensionInitialized = new Set<vscode.Uri | undefined>();
 let activated = false;
-const DEBUG = false;
+let logFile: string | undefined;
 
 type ChildProcessError = {code: number | undefined, stdout: string | undefined, stderr: string | undefined};
 
@@ -37,9 +37,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const currentVersion = extension?.packageJSON.version;
 	context.globalState.update('extensionVersion', currentVersion);
 
+	initDebugLog(context);
 	output(`Mypy extension activated, version ${currentVersion}`);
 	if (extension?.extensionKind === vscode.ExtensionKind.Workspace) {
 		output('Running remotely');
+	}
+	if (logFile) {
+		output(`Saving debug log to: ${logFile}`);
 	}
 
 	statusBarItem = vscode.window.createStatusBarItem();
@@ -73,6 +77,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.workspace.onDidChangeConfiguration(configurationChanged),
 		vscode.workspace.onDidOpenTextDocument(textDocumentOpened)
 	);
+}
+
+function initDebugLog(context: vscode.ExtensionContext) {
+	const mypyConfig = vscode.workspace.getConfiguration('mypy');
+	const debug = mypyConfig.get<boolean>('debugLogging', false);
+	if (debug) {
+		try {
+			const storageDir = context.globalStorageUri.fsPath;
+			fs.mkdirSync(storageDir, { recursive: true });
+			logFile = path.join(storageDir, "mypy_extension.log");
+		} catch (e) {
+			output(`Failed to create extension storage directory: ${e}`);
+		}
+	}
 }
 
 async function migrateDeprecatedSettings(folders?: readonly vscode.WorkspaceFolder[]) {
@@ -515,7 +533,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		return;
 	}
 
-	statusBarItem.show();
+	statusBarItem!.show();
 	activeChecks++;
 	const currentCheck = checkIndex;
 	checkIndex++;
@@ -541,7 +559,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 
 	activeChecks--;
 	if (activeChecks == 0) {
-		statusBarItem.hide();
+		statusBarItem!.hide();
 	}
 
 	if (result.stdout !== null) {
@@ -748,11 +766,17 @@ function output(line: string, currentCheck?: number) {
 	if (currentCheck !== undefined) {
 		line = `[${currentCheck}] ${line}`;
 	}
-	if (DEBUG) {
-		var tzoffset = (new Date()).getTimezoneOffset() * 60000;
-		var localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, -1);
-		fs.appendFileSync("/tmp/log.txt", `${localISOTime} [${process.pid}] ${line}\n`);
+
+	if (logFile) {
+		try {
+			var tzoffset = (new Date()).getTimezoneOffset() * 60000;
+			var localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, -1);
+			fs.appendFileSync(logFile, `${localISOTime} [${process.pid}] ${line}\n`);
+		} catch (e) {
+			// Ignore
+		}
 	}
+
 	try {
 		outputChannel.appendLine(line);
 	} catch (e) {
