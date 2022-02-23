@@ -315,17 +315,19 @@ async function runDmypy(
 	successfulExitCodes?: number[],
 	addPythonExecutableArgument = false,
 	currentCheck?: number,
+	retryIfDaemonStuck = true
 ): Promise<{ success: boolean, stdout: string | null }> {
 
 	let dmypyGlobalArgs: string[] = [];
 	let dmypyCommandArgs: string[] = [];
+	let statusFilePath: string | null = null;
 	// Store the dmypy status file in the extension's workspace storage folder, instead of the
 	// default location which is .dmypy.json in the cwd.
 	if (_context?.storageUri !== undefined) {
 		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
 		const folderHash = crypto.createHash('sha1').update(folder.toString()).digest('hex');
-		const statusFileName = `dmypy-${folderHash}.json`;
-		const statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
+		const statusFileName = `dmypy-${folderHash}-${process.pid}.json`;
+		statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
 		dmypyGlobalArgs = ["--status-file", statusFilePath];
 		const commandsSupportingLog: DmypyCommand[] = ["start", "restart", "run"];
 		if (commandsSupportingLog.includes(dmypyCommand)) {
@@ -428,20 +430,68 @@ async function runDmypy(
 			}
 			if (ex.stderr) {
 				output(`stderr:\n${ex.stderr}`, currentCheck);
-				if ((ex.stderr as string).indexOf('Daemon crashed!') != -1) {
+				if (ex.stderr.indexOf('Daemon crashed!') != -1) {
 					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
 					'see Output panel for details. The daemon will be restarted automatically.'
 					showDetailsButton = true;
-				} else if ((ex.stderr as string).indexOf('There are no .py[i] files in directory') != -1) {
+				} else if (ex.stderr.indexOf('There are no .py[i] files in directory') != -1) {
 					// Swallow this error. This may happen if one workspace folder contains
 					// Python files and another folder doesn't, or if a workspace contains Python
 					// files that are not reachable from the target directory.
 					return { success: true, stdout: '' };
+				} else if (
+					ex.stderr.indexOf('Connection refused') != -1 ||
+					ex.stderr.indexOf('No such file') != -1 || 
+					ex.stderr.indexOf('Socket operation on non-socket') != -1) {
+					// This can happen if the daemon is stuck, or if the status file is stale due to
+					// e.g. a previous daemon that hasn't been stopped properly. See:
+					// https://github.com/matangover/mypy-vscode/issues/37
+					// https://github.com/matangover/mypy-vscode/issues/45
+					// To reproduce the above exceptions:
+					//  1. 'Connection refused': kill daemon process (so that it stops listening on
+					//     the socket), and change the pid in status file to any running process.
+					//  2. 'No such file': change connection_name in status file to a non-existent
+					//     file.
+					//  3. 'Socket operation on non-socket': change connection_name in status file
+					//     to an existing file which is not a socket
+					if (retryIfDaemonStuck) {
+						// Kill the daemon.
+						output("Daemon is stuck or status file is stale. Killing daemon", currentCheck);
+						await killDaemon(folder, currentCheck, statusFilePath);
+						// Run the same command again, but this time don't retry if it fails.
+						await sleep(1000);
+						output("Retrying command", currentCheck);
+						return await runDmypy(folder, dmypyCommand, mypyArgs, warnIfFailed, successfulExitCodes, addPythonExecutableArgument, currentCheck, false);
+					} else {
+						error = 'the mypy daemon is stuck. An attempt to kill it and retry failed. ' + 
+						'This is probably a bug in mypy itself, see Output panel for details.';
+						showDetailsButton = true;
+					}
 				}
 			}
 		}
 		warn(`Error running mypy in ${folder.fsPath}: ${error}`, warnIfFailed, currentCheck, showDetailsButton);
 		return { success: false, stdout: null };
+	}
+}
+
+async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, statusFilePath: string | null) {
+	const killResult = await runDmypy(folder, "kill", undefined, undefined, undefined, undefined, currentCheck, false);
+	output(`Ran dmypy kill, stdout: ${killResult.stdout}`, currentCheck);
+	if (killResult.success) {
+		output("Daemon killed successfully", currentCheck);
+		return;
+	}
+
+	output("Error killing daemon, attempt to delete status file", currentCheck);
+	if (statusFilePath) {
+		try {
+			fs.unlinkSync(statusFilePath);
+		} catch (e) {
+			output(`Error deleting status file: ${errorToString(e)}`, currentCheck);
+		}
+	} else {
+		output("No status file to delete", currentCheck);
 	}
 }
 
