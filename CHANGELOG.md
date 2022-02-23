@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.2.2
+
+- Fix issues related to daemon not being properly closed: [#47](https://github.com/matangover/mypy-vscode/issues/47), [#45](https://github.com/matangover/mypy-vscode/issues/45), [#37](https://github.com/matangover/mypy-vscode/issues/37).
+- Add `mypy.debugLogging` setting.
+
 ## 0.2.1
 
 - Do not fail when `show_absolute_path = True` is specified in the mypy configuration file (#38, PR by @sidharthv96).
