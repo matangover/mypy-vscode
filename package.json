@@ -3,10 +3,14 @@
     "displayName": "Mypy",
     "description": "Type checking for Python using mypy",
     "author": "Matan Gover",
-    "repository": "https://github.com/matangover/mypy-vscode",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/matangover/mypy-vscode"
+    },
     "license": "MIT",
     "version": "0.2.1",
     "publisher": "matangover",
+    "icon": "mypy.png",
     "engines": {
         "vscode": "^1.46.0"
     },
