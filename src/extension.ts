@@ -593,6 +593,13 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 
 	output(`Check workspace: ${folder.fsPath}`, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
+
+	if (!mypyConfig.enabled) {
+		output(`Mypy disabled for workspace: ${folder.fsPath}`, currentCheck);
+
+		return
+	}
+
 	let targets = mypyConfig.get<string[]>("targets", []);
 	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output'];
 	const configFile = mypyConfig.get<string>("configFile");

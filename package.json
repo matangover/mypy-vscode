@@ -28,6 +28,12 @@
             "title": "Mypy",
             "type": "object",
             "properties": {
+                "mypy.enabled": {
+                    "type": "boolean",
+                    "default": "true",
+                    "scope": "resource",
+                    "description": "Enable or disable Mypy for this workspace/folder. Use this to disable checking in a monorepo."
+                },
                 "mypy.executable": {
                     "type": "string",
                     "default": "",
