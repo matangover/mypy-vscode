@@ -444,7 +444,7 @@ async function runDmypy(
 					return { success: true, stdout: '' };
 				} else if (
 					ex.stderr.indexOf('Connection refused') != -1 ||
-					ex.stderr.indexOf('No such file') != -1 || 
+					ex.stderr.indexOf('[Errno 2] No such file') != -1 ||
 					ex.stderr.indexOf('Socket operation on non-socket') != -1) {
 					// This can happen if the daemon is stuck, or if the status file is stale due to
 					// e.g. a previous daemon that hasn't been stopped properly. See:
