@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.2.3
+
+Add the `mypy.enabled` setting to allow disabling Mypy for a specific workspace or workspace folder (#41, PR by @LaurensBosscher).
+
 ## 0.2.2
 
 - Fix issues related to daemon not being properly closed: [#47](https://github.com/matangover/mypy-vscode/issues/47), [#45](https://github.com/matangover/mypy-vscode/issues/45), [#37](https://github.com/matangover/mypy-vscode/issues/37).
