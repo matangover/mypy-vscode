@@ -586,19 +586,22 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		return;
 	}
 
+	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
+	if (!mypyConfig.get<boolean>("enabled", true)) {
+		output(`Mypy disabled for folder: ${folder.fsPath}`);
+		const folderDiagnostics = diagnostics.get(folder);
+		if (folderDiagnostics) {
+			folderDiagnostics.clear();
+		}
+		return;
+	}
+
 	statusBarItem!.show();
 	activeChecks++;
 	const currentCheck = checkIndex;
 	checkIndex++;
 
-	output(`Check workspace: ${folder.fsPath}`, currentCheck);
-	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
-
-	if (!mypyConfig.enabled) {
-		output(`Mypy disabled for workspace: ${folder.fsPath}`, currentCheck);
-
-		return
-	}
+	output(`Check folder: ${folder.fsPath}`, currentCheck);
 
 	let targets = mypyConfig.get<string[]>("targets", []);
 	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output'];
@@ -625,8 +628,8 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	if (result.stdout !== null) {
 		output(`Mypy output:\n${result.stdout ?? "\n"}`, currentCheck);
 	}
-	const diagnostics = getWorkspaceDiagnostics(folder);
-	diagnostics.clear();
+	const folderDiagnostics = getWorkspaceDiagnostics(folder);
+	folderDiagnostics.clear();
 	if (result.success && result.stdout) {
 		let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
 		let match: RegExpExecArray | null;
@@ -653,7 +656,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 			diagnostic.source = 'mypy';
 			thisFileDiagnostics.push(diagnostic);
 		}
-		diagnostics.set(Array.from(fileDiagnostics.entries()));
+		folderDiagnostics.set(Array.from(fileDiagnostics.entries()));
 	}
 }
 

@@ -30,9 +30,9 @@
             "properties": {
                 "mypy.enabled": {
                     "type": "boolean",
-                    "default": "true",
+                    "default": true,
                     "scope": "resource",
-                    "description": "Enable or disable Mypy for this workspace/folder. Use this to disable checking in a monorepo."
+                    "description": "Enable or disable Mypy checking. For example, you can disable Mypy for a specific workspace or folder."
                 },
                 "mypy.executable": {
                     "type": "string",
