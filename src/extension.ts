@@ -248,7 +248,7 @@ async function runDmypy(
 			// This might happen when running using `python -m mypy.dmypy` and some error in the
 			// interpreter occurs, such as import error when mypy is not installed.
 			let error = '';
-			if (runUsingActiveInterpreter) {
+			if (runUsingActiveInterpreter && result.stderr.includes('ModuleNotFoundError')) {
 				error = 'Probably mypy is not installed in the active interpreter ' +
 					`(${activeInterpreter}). Either install mypy in this interpreter or switch ` +
 					'off the mypy.runUsingActiveInterpreter setting. ';
