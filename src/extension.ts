@@ -9,6 +9,7 @@ import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
 import {mypyOutputPattern} from './mypy';
+import {IExtensionApi, ActiveEnvironmentPathChangeEvent} from './python';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
@@ -17,7 +18,6 @@ let lock = new AsyncLock();
 let statusBarItem: vscode.StatusBarItem | undefined;
 let activeChecks = 0;
 let checkIndex = 1;
-const pythonExtensionInitialized = new Set<vscode.Uri | undefined>();
 let activated = false;
 let logFile: string | undefined;
 
@@ -45,13 +45,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	statusBarItem.text = "$(gear~spin) mypy";
 
 	output('Registering listener for interpreter changed event');
-	const pythonExtension = await getPythonExtension(undefined);
-	if (pythonExtension !== undefined) {
-		if (pythonExtension.exports.settings.onDidChangeExecutionDetails) {
-			const handler = pythonExtension.exports.settings.onDidChangeExecutionDetails(activeInterpreterChanged);
-			context.subscriptions.push(handler);
-			output('Listener registered');
-		}
+	const pythonExtensionAPI = await getPythonExtensionAPI(undefined);
+	if (pythonExtensionAPI !== undefined) {
+		const handler = pythonExtensionAPI.environments.onDidChangeActiveEnvironmentPath(activeInterpreterChanged);
+		context.subscriptions.push(handler);
+		output('Listener registered');
 	}
 	// TODO: add 'Mypy: recheck workspace' command.
 
@@ -100,7 +98,6 @@ async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): P
 		await stopDaemon(folder.uri);
 		diagnostics.get(folder.uri)?.dispose();
 		diagnostics.delete(folder.uri);
-		pythonExtensionInitialized.delete(folder.uri);
 	});
 	await forEachFolder(e.added, folder => checkWorkspace(folder.uri));
 }
@@ -215,8 +212,8 @@ async function runDmypy(
 		executionArgs = ["-m", "mypy.dmypy"];
 		if (executable === undefined) {
 			warn(
-				"Could not run mypy: no active interpreter. Please activate an interpreter or " +
-				"switch off the mypy.runUsingActiveInterpreter setting.",
+				"Could not run mypy: no active interpreter. Please activate an interpreter in the " +
+				"Python extension or switch off the mypy.runUsingActiveInterpreter setting.",
 				warnIfFailed, currentCheck
 			);
 		}
@@ -426,10 +423,7 @@ function isConfigFileName(file: string) {
 
 function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 	const folders = vscode.workspace.workspaceFolders ?? [];
-	const affectedFolders = folders.filter(folder => (
-		event.affectsConfiguration("mypy", folder) ||
-		event.affectsConfiguration("python.pythonPath", folder)
-	));
+	const affectedFolders = folders.filter(folder => event.affectsConfiguration("mypy", folder));
 	if (affectedFolders.length === 0) {
 		return;
 	}
@@ -538,53 +532,37 @@ function getWorkspaceDiagnostics(folder: vscode.Uri): vscode.DiagnosticCollectio
 }
 
 async function getActiveInterpreter(folder: vscode.Uri, currentCheck?: number) {
-	let path = await getPythonPathFromPythonExtension(folder, currentCheck);
-	if (path === undefined) {
-		path = vscode.workspace.getConfiguration('python', folder).get<string>('pythonPath');
-		output(`Using python.pythonPath: ${path}`, currentCheck);
-		if (!path) {
-			path = undefined;
-		}
-	}
-	return path;
+	return await getPythonPathFromPythonExtension(folder, currentCheck);
 }
-// The VS Code Python extension manages its own internal store of configuration settings.
-// The setting that was traditionally named "python.pythonPath" has been moved to the
-// Python extension's internal store. This function is mostly taken from pyright.
+
+// The VS Code Python extension manages its own internal Python interpreter configuration. This
+// function was originally taken from pyright but modified to work with the new environments API:
+// https://github.com/microsoft/vscode-python/wiki/Python-Environment-APIs
 async function getPythonPathFromPythonExtension(
     scopeUri: vscode.Uri | undefined, currentCheck: number | undefined
 ): Promise<string | undefined> {
     try {
-        const extension = await getPythonExtension(currentCheck);
-		if (extension === undefined) {
+        const api = await getPythonExtensionAPI(currentCheck);
+		if (api === undefined) {
 			return;
 		}
 
-		const execDetails = await extension.exports.settings.getExecutionDetails(scopeUri);
-		let result: string | undefined;
-		if (execDetails.execCommand && execDetails.execCommand.length > 0) {
-			result = execDetails.execCommand[0];
+		const environmentPath = api.environments.getActiveEnvironmentPath(scopeUri);
+		const environment = await api.environments.resolveEnvironment(environmentPath);
+		if (environment === undefined) {
+			output('Invalid Python environment returned by Python extension', currentCheck);
+			return;
 		}
-
-		if (result === "python" && !pythonExtensionInitialized.has(scopeUri)) {
-			// There is a bug in the Python extension which returns sometimes 'python'
-			// while the extension is initializing. This can cause ugly errors when the mypy
-			// extension runs before the interpreter is initialized.
-			// See https://github.com/microsoft/vscode-python/issues/15467
-			// Give the Python extension 5 more seconds to properly load (hopefully).
-			output(`Got 'python' as Python path, giving the Python extension 5 more seconds to load`, currentCheck);
-			await sleep(5000);
-			pythonExtensionInitialized.add(scopeUri);
-			return getPythonPathFromPythonExtension(scopeUri, currentCheck)
-		} else {
-			pythonExtensionInitialized.add(scopeUri);
+		if (environment.executable.uri === undefined) {
+			output('Invalid Python executable path returned by Python extension', currentCheck);
+			return;
 		}
-
-		output(`Received python path from Python extension: ${result}`, currentCheck);
+		const result = environment.executable.uri.fsPath;
+		output(`Received Python path from Python extension: ${result}`, currentCheck);
 		return result;
     } catch (error) {
         output(
-            `Exception when reading python path from Python extension: ${errorToString(error)}`,
+            `Exception when reading Python path from Python extension: ${errorToString(error)}`,
 			currentCheck
         );
     }
@@ -592,27 +570,22 @@ async function getPythonPathFromPythonExtension(
     return undefined;
 }
 
-function activeInterpreterChanged(resource: vscode.Uri | undefined) {
-	output(`Active interpreter changed for resource: ${resource?.fsPath}`);
+function activeInterpreterChanged(e: ActiveEnvironmentPathChangeEvent) {
+	const resource = e.resource;
 	if (resource === undefined) {
+		output(`Active interpreter changed for resource: unknown`);
 		vscode.workspace.workspaceFolders?.map(folder => checkWorkspace(folder.uri));
 	} else {
-		const folder = vscode.workspace.getWorkspaceFolder(resource);
-		if (folder) {
-			checkWorkspace(folder.uri);
-		}
+		output(`Active interpreter changed for resource: ${resource.uri.fsPath}`);
+		checkWorkspace(resource.uri);
 	}
 }
 
-async function getPythonExtension(currentCheck: number | undefined) {
+async function getPythonExtensionAPI(currentCheck: number | undefined) {
 	const extension = vscode.extensions.getExtension('ms-python.python');
 	if (!extension) {
 		output('Python extension not found', currentCheck);
 		return undefined;
-	}
-
-	if (!extension.packageJSON?.featureFlags?.usingNewInterpreterStorage) {
-		return undefined
 	}
 
 	if (!extension.isActive) {
@@ -620,7 +593,17 @@ async function getPythonExtension(currentCheck: number | undefined) {
 		await extension.activate();
 		output('Python extension loaded', currentCheck);
 	}
-	return extension;
+
+	const environmentsAPI = extension.exports?.environments;
+	if (!environmentsAPI) {
+		output(
+			'Python extension version is too old (it does not expose the environments API). ' +
+			'Please upgrade the Python extension to the latest version.',
+			currentCheck
+		);
+		return undefined;
+	}
+	return extension.exports as IExtensionApi;
 }
 
 async function warn(warning: string, show=false, currentCheck?: number, detailsButton=false) {
