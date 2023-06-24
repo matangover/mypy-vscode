@@ -463,7 +463,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	output(`Check folder: ${folder.fsPath}`, currentCheck);
 
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = [...targets, '--show-column-numbers', '--no-error-summary', '--no-pretty', '--no-color-output'];
+	const mypyArgs = [...targets, '--show-error-end', '--no-error-summary', '--no-pretty', '--no-color-output'];
 	const configFile = mypyConfig.get<string>("configFile");
 	if (configFile) {
 		output(`Using config file: ${configFile}`, currentCheck);
@@ -491,9 +491,89 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	folderDiagnostics.clear();
 	if (result.success && result.stdout) {
 		let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
-		let match: RegExpExecArray | null;
-		while ((match = mypyOutputPattern.exec(result.stdout)) !== null) {
-			const groups = match.groups as { file: string, line: string, column?: string, type: string, message: string };
+		let notes = [];
+		let seeUrl = undefined;
+
+		let i = 0;
+		const outputLines = result.stdout.split(/\r?\n/).reduce(
+			(acc, line) => {
+				const groups = mypyOutputPattern.exec(line)?.groups;
+
+				if (groups) {
+					acc.push(
+						groups as {
+							location: string;
+							file: string;
+							line: string;
+							column: string;
+							endLine: string;
+							endColumn: string;
+							type: string;
+							message: string;
+							code?: string;
+						}
+					);
+				}
+
+				return acc;
+			},
+			[] as {
+				location: string;
+				file: string;
+				line: string;
+				column: string;
+				endLine: string;
+				endColumn: string;
+				type: string;
+				message: string;
+				code?: string;
+			}[]
+		);
+
+		for (const groups of outputLines) {
+			if (!groups) {
+				i++;
+				continue;
+			}
+
+			let message: string;
+			let url: string | undefined;
+
+			if (groups.type === "note") {
+				if (
+					seeUrl === undefined &&
+					groups.message.startsWith("See https://mypy.readthedocs.io")
+				) {
+					seeUrl = groups.message.slice(4);
+				}
+
+				notes.push(groups.message);
+
+				if (i + 1 < outputLines.length) {
+					const nextGroups = outputLines[i + 1];
+
+					if (
+						nextGroups &&
+						nextGroups.type === "note" &&
+						nextGroups.location === groups.location
+					) {
+						// the note is not finished yet
+						i++;
+						continue;
+					}
+				}
+
+				message = notes.join("\n");
+				url = seeUrl;
+			} else {
+				message = groups.message;
+				url = `https://mypy.readthedocs.io/en/latest/_refs.html#code-${groups.code}`;
+			}
+
+			i++;
+			notes = [];
+			seeUrl = undefined;
+
 			// By default mypy outputs paths relative to the checked folder. If the user specifies
 			// `show_absolute_path = True` in the config file, mypy outputs absolute paths.
 			let filePath = groups.file;
@@ -505,14 +585,26 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 				fileDiagnostics.set(fileUri, []);
 			}
 			const thisFileDiagnostics = fileDiagnostics.get(fileUri)!;
+
 			const line = parseInt(groups.line) - 1;
-			const column = parseInt(groups.column || '1') - 1;
+			const column = parseInt(groups.column) - 1;
+			const endLine = parseInt(groups.endLine) - 1;
+			const endColumn = parseInt(groups.endColumn);
+
 			const diagnostic = new vscode.Diagnostic(
-				new vscode.Range(line, column, line, column),
-				groups.message,
-				groups.type === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Information
+				new vscode.Range(line, column, endLine, endColumn),
+				message,
+				groups.type === "error"
+					? vscode.DiagnosticSeverity.Error
+					: vscode.DiagnosticSeverity.Information
 			);
-			diagnostic.source = 'mypy';
+
+			diagnostic.source = "mypy";
+			diagnostic.code = url && {
+				value: groups.code ?? "note",
+				target: vscode.Uri.parse(url),
+			};
+
 			thisFileDiagnostics.push(diagnostic);
 		}
 		folderDiagnostics.set(Array.from(fileDiagnostics.entries()));
