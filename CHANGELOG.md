@@ -1,8 +1,14 @@
 # Change Log
 
+## 0.3.0
+
+- Add `mypy.extraArguments` setting to allow passing additional arguments to mypy (fixes [#35](https://github.com/matangover/mypy-vscode/issues/35)).
+- Use Python extension's new environments API (fixes [#70](https://github.com/matangover/mypy-vscode/issues/70)).
+- Better error message when running mypy using active interpreter (fixes [#71](https://github.com/matangover/mypy-vscode/issues/71)).
+
 ## 0.2.3
 
-Add the `mypy.enabled` setting to allow disabling Mypy for a specific workspace or workspace folder (#41, PR by @LaurensBosscher).
+Add the `mypy.enabled` setting to allow disabling Mypy for a specific workspace or workspace folder ([#41](https://github.com/matangover/mypy-vscode/issues/41), PR by @LaurensBosscher).
 
 ## 0.2.2
 
