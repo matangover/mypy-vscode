@@ -624,7 +624,15 @@ function getWorkspaceDiagnostics(folder: vscode.Uri): vscode.DiagnosticCollectio
 }
 
 async function getActiveInterpreter(folder: vscode.Uri, currentCheck?: number) {
-	return await getPythonPathFromPythonExtension(folder, currentCheck);
+	const path = await getPythonPathFromPythonExtension(folder, currentCheck);
+	if (path === undefined) {
+		return undefined;
+	}
+	if (!fs.existsSync(path)) {
+		warn(`The selected Python interpreter does not exist: ${path}`, false, currentCheck);
+		return undefined;
+	}
+	return path;
 }
 
 // The VS Code Python extension manages its own internal Python interpreter configuration. This
