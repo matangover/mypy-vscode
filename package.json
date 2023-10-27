@@ -77,6 +77,15 @@
                     "default": false,
                     "scope": "window",
                     "markdownDescription": "Enable debug logging for the extension. (Reload the window after changing this setting.)"
+                },
+                "mypy.extraArguments": {
+                    "type": "array",
+                    "default": [],
+                    "scope": "resource",
+                    "items": {
+                        "type": "string"
+                    },
+                    "markdownDescription": "A list of extra command line arguments to append to the `dmypy run` command. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html)."
                 }
             }
         }

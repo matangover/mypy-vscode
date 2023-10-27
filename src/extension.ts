@@ -225,7 +225,7 @@ async function runDmypy(
 	}
 
 	if (addPythonExecutableArgument && activeInterpreter) {
-		mypyArgs = [...mypyArgs, '--python-executable', activeInterpreter];
+		mypyArgs = ['--python-executable', activeInterpreter, ...mypyArgs];
 	}
 
 	const args = [...executionArgs, ...dmypyGlobalArgs, dmypyCommand, ...dmypyCommandArgs];
@@ -468,6 +468,11 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	if (configFile) {
 		output(`Using config file: ${configFile}`, currentCheck);
 		mypyArgs.push('--config-file', configFile);
+	}
+	const extraArguments = mypyConfig.get<string[]>("extraArguments");
+	if (extraArguments) {
+		output(`Using extra arguments: ${extraArguments}`, currentCheck);
+		mypyArgs.push(...extraArguments);
 	}
 	const result = await runDmypy(
 		folder,
