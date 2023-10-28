@@ -8,7 +8,7 @@ import untildify = require('untildify');
 import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
-import {mypyOutputPattern} from './mypy';
+import {MypyOutputLine, mypyOutputPattern} from './mypy';
 import {IExtensionApi, ActiveEnvironmentPathChangeEvent} from './python';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
@@ -495,125 +495,99 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	const folderDiagnostics = getWorkspaceDiagnostics(folder);
 	folderDiagnostics.clear();
 	if (result.success && result.stdout) {
-		let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
-		let notes = [];
-		let seeUrl = undefined;
-
-		let i = 0;
-		const outputLines = result.stdout.split(/\r?\n/).reduce(
-			(acc, line) => {
-				const groups = mypyOutputPattern.exec(line)?.groups;
-
-				if (groups) {
-					acc.push(
-						groups as {
-							location: string;
-							file: string;
-							line: string;
-							column: string;
-							endLine: string;
-							endColumn: string;
-							type: string;
-							message: string;
-							code?: string;
-						}
-					);
-				}
-
-				return acc;
-			},
-			[] as {
-				location: string;
-				file: string;
-				line: string;
-				column: string;
-				endLine: string;
-				endColumn: string;
-				type: string;
-				message: string;
-				code?: string;
-			}[]
-		);
-
-		for (const groups of outputLines) {
-			if (!groups) {
-				i++;
-				continue;
-			}
-
-			let message: string;
-			let url: string | undefined;
-
-			if (groups.type === "note") {
-				if (
-					seeUrl === undefined &&
-					groups.message.startsWith("See https://mypy.readthedocs.io")
-				) {
-					seeUrl = groups.message.slice(4);
-				}
-
-				notes.push(groups.message);
-
-				if (i + 1 < outputLines.length) {
-					const nextGroups = outputLines[i + 1];
-
-					if (
-						nextGroups &&
-						nextGroups.type === "note" &&
-						nextGroups.location === groups.location
-					) {
-						// the note is not finished yet
-						i++;
-						continue;
-					}
-				}
-
-				message = notes.join("\n");
-				url = seeUrl;
-			} else {
-				message = groups.message;
-				url = `https://mypy.readthedocs.io/en/latest/_refs.html#code-${groups.code}`;
-			}
-
-			i++;
-			notes = [];
-			seeUrl = undefined;
-
-			// By default mypy outputs paths relative to the checked folder. If the user specifies
-			// `show_absolute_path = True` in the config file, mypy outputs absolute paths.
-			let filePath = groups.file;
-			if (!path.isAbsolute(filePath)) {
-				filePath = path.join(folder.fsPath, filePath);
-			}
-			const fileUri = vscode.Uri.file(filePath);
-			if (!fileDiagnostics.has(fileUri)) {
-				fileDiagnostics.set(fileUri, []);
-			}
-			const thisFileDiagnostics = fileDiagnostics.get(fileUri)!;
-
-			const line = parseInt(groups.line) - 1;
-			const column = parseInt(groups.column) - 1;
-			const endLine = parseInt(groups.endLine) - 1;
-			const endColumn = parseInt(groups.endColumn);
-
-			const diagnostic = new vscode.Diagnostic(
-				new vscode.Range(line, column, endLine, endColumn),
-				message,
-				groups.type === "error"
-					? vscode.DiagnosticSeverity.Error
-					: vscode.DiagnosticSeverity.Information
-			);
-
-			diagnostic.source = "mypy";
-			diagnostic.code = url && {
-				value: groups.code ?? "note",
-				target: vscode.Uri.parse(url),
-			};
-
-			thisFileDiagnostics.push(diagnostic);
-		}
+		const fileDiagnostics = parseMypyOutput(result.stdout, folder);
 		folderDiagnostics.set(Array.from(fileDiagnostics.entries()));
 	}
+}
+
+function parseMypyOutput(stdout: string, folder: vscode.Uri) {
+	const outputLines: MypyOutputLine[] = [];
+	stdout.split(/\r?\n/).forEach(line => {
+		const match = mypyOutputPattern.exec(line);
+		if (match !== null) {
+			const line = match.groups as MypyOutputLine;
+			const previousLine = outputLines[outputLines.length - 1];
+			if (previousLine && line.type == "note" && previousLine.type == "note" && line.location == previousLine.location) {
+				// This line continues the note on the previous line, merge them.
+				previousLine.message += "\n" + line.message;
+			} else {
+				outputLines.push(line);
+			}
+		}
+	});
+	
+	let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
+	for (const line of outputLines) {
+		const diagnostic = createDiagnostic(line);
+		const fileUri = getFileUri(line.file, folder);
+		if (!fileDiagnostics.has(fileUri)) {
+			fileDiagnostics.set(fileUri, []);
+		}
+		const thisFileDiagnostics = fileDiagnostics.get(fileUri)!;
+		thisFileDiagnostics.push(diagnostic);
+	}
+	return fileDiagnostics;
+}
+
+function getLinkUrl(line: MypyOutputLine) {
+	if (line.type == "note") {
+		const seeLines = line.message.split(/\r?\n/).filter(l => l.startsWith("See https://"));
+		if (seeLines.length > 0) {
+			return seeLines[0].slice(4);
+		}
+	} else {
+		if (line.code) {
+			return `https://mypy.readthedocs.io/en/stable/_refs.html#code-${line.code}`;
+		}
+	}
+	return undefined;
+}
+
+function getFileUri(filePath: string, folder: vscode.Uri) {
+	// By default mypy outputs paths relative to the checked folder. If the user specifies
+	// `show_absolute_path = True` in the config file, mypy outputs absolute paths.	
+	if (!path.isAbsolute(filePath)) {
+		filePath = path.join(folder.fsPath, filePath);
+	}
+	const fileUri = vscode.Uri.file(filePath);
+	return fileUri;
+}
+
+function createDiagnostic(line: MypyOutputLine) {
+	// Mypy output is 1-based, VS Code is 0-based.
+	const lineNo = parseInt(line.line) - 1;
+	const column = parseInt(line.column) - 1;
+	const endLineNo = parseInt(line.endLine) - 1;
+	// Mypy's endColumn is inclusive, VS Code's is exclusive.
+	let endColumn = parseInt(line.endColumn);
+
+	if (lineNo == endLineNo && column == endColumn - 1) {
+		// Mypy gave a zero-length range, give a zero-length range for VS Code as well, so that the
+		// error squiggle marks the entire word at that position.
+		endColumn = column;
+	}
+	const range = new vscode.Range(lineNo, column, endLineNo, endColumn);
+	
+	const diagnostic = new vscode.Diagnostic(
+		range,
+		line.message,
+		line.type === "error"
+			? vscode.DiagnosticSeverity.Error
+			: vscode.DiagnosticSeverity.Information
+	);
+
+	diagnostic.source = "mypy";
+	const errorCode = line.code ?? "note";
+	const url = getLinkUrl(line);
+	if (url === undefined) {
+		diagnostic.code = errorCode;
+	} else {
+		diagnostic.code = {
+			value: errorCode,
+			target: vscode.Uri.parse(url),
+		};
+	}
+	return diagnostic;
 }
 
 function getWorkspaceDiagnostics(folder: vscode.Uri): vscode.DiagnosticCollection {
