@@ -2,9 +2,11 @@
 
 ## 0.3.0
 
-- Add `mypy.extraArguments` setting to allow passing additional arguments to mypy (fixes [#35](https://github.com/matangover/mypy-vscode/issues/35)).
-- Use Python extension's new environments API (fixes [#70](https://github.com/matangover/mypy-vscode/issues/70)).
-- Better error message when running mypy using active interpreter (fixes [#71](https://github.com/matangover/mypy-vscode/issues/71)).
+- Add `mypy.extraArguments` setting to allow passing additional arguments to mypy ([#35](https://github.com/matangover/mypy-vscode/issues/35)).
+- Display mypy's error codes with links to relevant documentation (PR [#74](https://github.com/matangover/mypy-vscode/pull/74) by @vidhanio.)
+- Group long mypy messages into a single VS Code diagnostic (also in PR #74).
+- Use Python extension's new environments API for better detection of the active Python interpreter ([#70](https://github.com/matangover/mypy-vscode/issues/70)).
+- Better error message when running mypy using active interpreter ([#71](https://github.com/matangover/mypy-vscode/issues/71)).
 
 ## 0.2.3
 
