@@ -367,10 +367,9 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 	if (isCommand) {
 		const executable = await lookpath(dmypyExecutable);
 		if (executable === undefined) {
-			warn(
+			output(
 				`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
-				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
-				warnIfFailed, currentCheck
+				`Please install mypy or adjust the mypy.dmypyExecutable setting.`
 			)
 			return undefined;
 		}
@@ -378,10 +377,9 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 	} else {
 		dmypyExecutable = untildify(dmypyExecutable).replace('${workspaceFolder}', folder.fsPath)
 		if (!fs.existsSync(dmypyExecutable)) {
-			warn(
+			output(
 				`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
-				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
-				warnIfFailed, currentCheck
+				`Please install mypy or adjust the mypy.dmypyExecutable setting.`
 			)
 			return undefined;
 		}
