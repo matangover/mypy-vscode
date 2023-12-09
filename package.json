@@ -85,7 +85,7 @@
                     "items": {
                         "type": "string"
                     },
-                    "markdownDescription": "A list of extra command line arguments to append to the `dmypy run` command. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html)."
+                    "markdownDescription": "A list of extra command-line arguments to append to the `dmypy run` command. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html)."
                 }
             }
         }
