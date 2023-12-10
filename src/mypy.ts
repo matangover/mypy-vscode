@@ -11,8 +11,8 @@ export type MypyOutputLine = {
 	file: string;
 	line: string;
 	column: string;
-	endLine: string;
-	endColumn: string;
+	endLine?: string;
+	endColumn?: string;
 	type: string;
 	message: string;
 	code?: string;

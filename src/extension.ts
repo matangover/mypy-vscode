@@ -557,14 +557,17 @@ function createDiagnostic(line: MypyOutputLine) {
 	// Mypy output is 1-based, VS Code is 0-based.
 	const lineNo = parseInt(line.line) - 1;
 	const column = parseInt(line.column) - 1;
-	const endLineNo = parseInt(line.endLine) - 1;
-	// Mypy's endColumn is inclusive, VS Code's is exclusive.
-	let endColumn = parseInt(line.endColumn);
-
-	if (lineNo == endLineNo && column == endColumn - 1) {
-		// Mypy gave a zero-length range, give a zero-length range for VS Code as well, so that the
-		// error squiggle marks the entire word at that position.
-		endColumn = column;
+	let endLineNo = lineNo;
+	let endColumn = column;
+	if (line.endLine !== undefined && line.endColumn !== undefined) {
+		endLineNo = parseInt(line.endLine) - 1;
+		// Mypy's endColumn is inclusive, VS Code's is exclusive.
+		endColumn = parseInt(line.endColumn);
+		if (lineNo == endLineNo && column == endColumn - 1) {
+			// Mypy gave a zero-length range, give a zero-length range for VS Code as well, so that
+			// the error squiggle marks the entire word at that position.
+			endColumn = column;
+		}
 	}
 	const range = new vscode.Range(lineNo, column, endLineNo, endColumn);
 	
