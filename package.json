@@ -95,7 +95,7 @@
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
-        "test": "mocha out/mypy.test.js"
+        "test": "npm run compile && mocha out/mypy.test.js"
     },
     "devDependencies": {
         "@types/async-lock": "^1.1.2",
