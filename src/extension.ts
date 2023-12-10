@@ -556,7 +556,10 @@ function getFileUri(filePath: string, folder: vscode.Uri) {
 function createDiagnostic(line: MypyOutputLine) {
 	// Mypy output is 1-based, VS Code is 0-based.
 	const lineNo = parseInt(line.line) - 1;
-	const column = parseInt(line.column) - 1;
+	let column = 0;
+	if (line.column !== undefined) {
+		column = parseInt(line.column) - 1;
+	}
 	let endLineNo = lineNo;
 	let endColumn = column;
 	if (line.endLine !== undefined && line.endColumn !== undefined) {

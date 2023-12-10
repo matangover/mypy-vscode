@@ -23,7 +23,7 @@ const mypyOutputTests = [
   ],
   [
     "/some/absolute/path.py:13: error: hello",
-    null,
+    ["/some/absolute/path.py", "13", undefined, "error", "hello"],
   ],
   [
     "C:\\Path with space\\file.py:13:12: error: hello",
@@ -57,6 +57,10 @@ const mypyOutputTests = [
     "file3.py: error: another message",
     null,
   ],
+  [
+    "mypy/test/data.py:627: error: Unused \"type: ignore\" comment",
+    ["mypy/test/data.py", "627", undefined, "error", "Unused \"type: ignore\" comment"],
+  ]
 ] as const;
 
 describe("Mypy", function () {
