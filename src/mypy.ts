@@ -1,5 +1,10 @@
-export const mypyOutputPattern =
-	/^(?<location>(?<file>[^\n]+?):(?<line>\d+):(?<column>\d+):(?<endLine>\d+):(?<endColumn>\d+)): (?<type>\w+): (?<message>.*?)(?:  \[(?<code>[\w-]+)\])?$/;
+const r = String.raw;
+const endLocation = r`(:(?<endLine>\d+):(?<endColumn>\d+))?`;
+const location = r`(?<location>(?<file>.+?):(?<line>\d+):(?<column>\d+)${endLocation})`;
+const code = r`(?:  \[(?<code>[\w-]+)\])?`;
+const mypyOutputLine =
+	r`^${location}: (?<type>\w+): (?<message>.*?)${code}$`;
+export const mypyOutputPattern = new RegExp(mypyOutputLine);
 
 export type MypyOutputLine = {
 	location: string;
