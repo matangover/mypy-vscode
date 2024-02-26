@@ -360,6 +360,20 @@ async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, 
 	}
 }
 
+async function restartDaemon() {
+	async function restartDaemonInternal(folder: vscode.Uri) {
+		const restartResult = await runDmypy(folder, "restart");
+		output(`Ran dmypy restart, stdout: ${restartResult.stdout}`);
+		if (restartResult.success) {
+			output(`Restarted daemon: ${folder.fsPath}`);
+			return;
+		}
+		output(`Error restarting daemon: ${folder.fsPath}`);
+	}
+
+	await forEachFolder(vscode.workspace.workspaceFolders, folder => restartDaemonInternal(folder.uri));
+}
+
 async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, currentCheck?: number): Promise<string | undefined> {
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let dmypyExecutable = mypyConfig.get<string>('dmypyExecutable') ?? 'dmypy';

@@ -88,7 +88,13 @@
                     "markdownDescription": "A list of extra command-line arguments to append to the `dmypy run` command. Add each argument as a separate item. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html)."
                 }
             }
-        }
+        },
+        "commands": [
+            {
+                "command": "mypy.restartDaemon",
+                "title": "Restart Mypy Daemon"
+            }
+        ]
     },
     "main": "./out/extension.js",
     "scripts": {

@@ -38,6 +38,10 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.debugLogging`: Enable debug logging for the extension. (Reload the window after changing this setting.)
 
+## Commands
+
+* `Mypy: Restart mypy daemon`: Restart the mypy daemon. This is useful if you change the mypy configuration or if mypy is behaving unexpectedly.
+
 ## License
 
 This project is made available under the MIT License.
