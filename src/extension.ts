@@ -380,6 +380,7 @@ async function restartAndRecheckWorkspace() {
 async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, currentCheck?: number): Promise<string | undefined> {
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 	let dmypyExecutable = mypyConfig.get<string>('dmypyExecutable') ?? 'dmypy';
+	let helpURL = "https://github.com/matangover/mypy-vscode#installing-mypy";
 	const isCommand = path.parse(dmypyExecutable).dir === '';
 	if (isCommand) {
 		const executable = await lookpath(dmypyExecutable);
@@ -387,7 +388,7 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 			warn(
 				`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
 				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
-				warnIfFailed, currentCheck
+				warnIfFailed, currentCheck, undefined, helpURL
 			)
 			return undefined;
 		}
@@ -398,7 +399,7 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 			warn(
 				`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
 				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
-				warnIfFailed, currentCheck
+				warnIfFailed, currentCheck, undefined, helpURL
 			)
 			return undefined;
 		}
@@ -708,13 +709,21 @@ async function getPythonExtensionAPI(currentCheck: number | undefined) {
 	return extension.exports as IExtensionApi;
 }
 
-async function warn(warning: string, show=false, currentCheck?: number, detailsButton=false) {
+async function warn(warning: string, show=false, currentCheck?: number, detailsButton=false, helpURL?: string) {
 	output(warning, currentCheck);
 	if (show) {
-		const items = detailsButton ? ["Details"] : [];
+		const items = [];
+		if (detailsButton) {
+			items.push("Details");
+		}
+		if (helpURL) {
+			items.push("Help");
+		}
 		const result = await vscode.window.showWarningMessage(warning, ...items);
 		if (result === "Details") {
 			outputChannel.show();
+		} else if (result === "Help") {
+			vscode.env.openExternal(vscode.Uri.parse(helpURL!));
 		}
 	}
 }

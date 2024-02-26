@@ -3,6 +3,7 @@
 ## 0.3.1
 
 - Add commands `Mypy: Recheck Workspace` and `Mypy: Restart Daemon and Recheck Workspace`.
+- Add help link when dmypy executable is not found.
 
 ## 0.3.0
 
