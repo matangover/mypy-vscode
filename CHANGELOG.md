@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.3.1
+
+- Add commands `Mypy: Recheck Workspace` and `Mypy: Restart Daemon and Recheck Workspace`.
+
 ## 0.3.0
 
 - Add `mypy.extraArguments` setting to allow passing additional arguments to mypy ([#35](https://github.com/matangover/mypy-vscode/issues/35)).

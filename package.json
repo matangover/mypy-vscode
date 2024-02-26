@@ -8,7 +8,7 @@
         "url": "https://github.com/matangover/mypy-vscode"
     },
     "license": "MIT",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "publisher": "matangover",
     "icon": "mypy.png",
     "engines": {
@@ -91,10 +91,26 @@
         },
         "commands": [
             {
-                "command": "mypy.restartDaemon",
-                "title": "Restart Mypy Daemon"
+                "command": "mypy.recheckWorkspace",
+                "title": "Mypy: Recheck Workspace"
+            },
+            {
+                "command": "mypy.restartAndRecheckWorkspace",
+                "title": "Mypy: Restart Daemon and Recheck Workspace"
             }
-        ]
+        ],
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "mypy.recheckWorkspace",
+                    "when": "mypy.activated"
+                },
+                {
+                    "command": "mypy.restartAndRecheckWorkspace",
+                    "when": "mypy.activated"
+                }
+            ]
+        }      
     },
     "main": "./out/extension.js",
     "scripts": {

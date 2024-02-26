@@ -51,7 +51,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		context.subscriptions.push(handler);
 		output('Listener registered');
 	}
-	// TODO: add 'Mypy: recheck workspace' command.
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged),
@@ -59,8 +58,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.workspace.onDidDeleteFiles(filesDeleted),
 		vscode.workspace.onDidRenameFiles(filesRenamed),
 		vscode.workspace.onDidCreateFiles(filesCreated),
-		vscode.workspace.onDidChangeConfiguration(configurationChanged)
+		vscode.workspace.onDidChangeConfiguration(configurationChanged),
+		vscode.commands.registerCommand("mypy.recheckWorkspace", recheckWorkspace),
+		vscode.commands.registerCommand("mypy.restartAndRecheckWorkspace", restartAndRecheckWorkspace)
 	);
+	// This is used to show the custom commands only when the extension is active.
+	vscode.commands.executeCommand("setContext", "mypy.activated", true);
+
 	// Do _not_ await this call on purpose, so that extension activation finishes quickly. This is
 	// important because if VS Code is closed before the checks are done, deactivate will only be
 	// called if activate has already finished.
@@ -88,6 +92,7 @@ export async function deactivate(): Promise<void> {
 	output(`Mypy extension deactivating, shutting down daemons...`);
 	await forEachFolder(vscode.workspace.workspaceFolders, folder => stopDaemon(folder.uri));
 	output(`Mypy daemons stopped, extension deactivated`);
+	vscode.commands.executeCommand("setContext", "mypy.activated", false);
 }
 
 async function workspaceFoldersChanged(e: vscode.WorkspaceFoldersChangeEvent): Promise<void> {
@@ -360,18 +365,16 @@ async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, 
 	}
 }
 
-async function restartDaemon() {
-	async function restartDaemonInternal(folder: vscode.Uri) {
-		const restartResult = await runDmypy(folder, "restart");
-		output(`Ran dmypy restart, stdout: ${restartResult.stdout}`);
-		if (restartResult.success) {
-			output(`Restarted daemon: ${folder.fsPath}`);
-			return;
-		}
-		output(`Error restarting daemon: ${folder.fsPath}`);
-	}
+async function recheckWorkspace() {
+	output("Rechecking workspace");
+	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
+	output("Recheck complete");
+}
 
-	await forEachFolder(vscode.workspace.workspaceFolders, folder => restartDaemonInternal(folder.uri));
+async function restartAndRecheckWorkspace() {
+	output("Stopping daemons");
+	await forEachFolder(vscode.workspace.workspaceFolders, folder => stopDaemon(folder.uri));
+	await recheckWorkspace();
 }
 
 async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, currentCheck?: number): Promise<string | undefined> {
@@ -484,7 +487,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		mypyArgs.push('--config-file', configFile);
 	}
 	const extraArguments = mypyConfig.get<string[]>("extraArguments");
-	if (extraArguments) {
+	if (extraArguments !== undefined && extraArguments.length > 0) {
 		output(`Using extra arguments: ${extraArguments}`, currentCheck);
 		mypyArgs.push(...extraArguments);
 	}
