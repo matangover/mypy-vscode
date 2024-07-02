@@ -110,7 +110,7 @@
                     "when": "mypy.activated"
                 }
             ]
-        }
+        }      
     },
     "main": "./out/extension.js",
     "scripts": {
