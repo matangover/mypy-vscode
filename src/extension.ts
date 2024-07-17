@@ -421,9 +421,7 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 }
 
 async function checkAllNotebooks() {
-	for (const notebook of vscode.workspace.notebookDocuments) {
-		await checkNotebook(notebook)
-	}
+	await Promise.all(vscode.workspace.notebookDocuments.map(notebook => checkNotebook(notebook)));
 }
 
 async function checkNotebook(notebook: vscode.NotebookDocument) {
