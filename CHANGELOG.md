@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.4.0
+
+- Check Python code in Jupyter notebooks. PR [#96](https://github.com/matangover/mypy-vscode/pull/96) by @arikrundquist.
+
 ## 0.3.1
 
 - Add commands `Mypy: Recheck Workspace` and `Mypy: Restart Daemon and Recheck Workspace`.

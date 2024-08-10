@@ -72,6 +72,18 @@
                     "uniqueItems": true,
                     "description": "List of paths to analyze, relative to the workspace folder. By default, check the entire workspace folder."
                 },
+                "mypy.checkNotebooks": {
+                    "type": "boolean",
+                    "default": false,
+                    "scope": "resource",
+                    "markdownDescription": "Check Python code in Jupyter notebooks."
+                },
+                "mypy.mypyExecutable": {
+                    "type": "string",
+                    "default": "mypy",
+                    "scope": "resource",
+                    "markdownDescription": "Path to `mypy` (the mypy executable). Used only for checking Jupyter notebooks. You can use the same substitutions as in the `dmypyExecutable` setting."
+                },
                 "mypy.debugLogging": {
                     "type": "boolean",
                     "default": false,

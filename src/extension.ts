@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// called if activate has already finished.
 	forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
 
-	// similarly, do not await this either
+	// Similarly, do not await this too.
 	checkAllNotebooks()
 
 	output('Activation complete');
@@ -220,24 +220,8 @@ async function runDmypy(
 		}
 	}
 
-	const activeInterpreter = await getActiveInterpreter(folder, currentCheck);
-	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
-	let executable: string | undefined;
-	const runUsingActiveInterpreter = mypyConfig.get<boolean>('runUsingActiveInterpreter');
-	let executionArgs: string[] = [];
-	if (runUsingActiveInterpreter) {
-		executable = activeInterpreter;
-		executionArgs = ["-m", "mypy.dmypy"];
-		if (executable === undefined) {
-			warn(
-				"Could not run mypy: no active interpreter. Please activate an interpreter in the " +
-				"Python extension or switch off the mypy.runUsingActiveInterpreter setting.",
-				warnIfFailed, currentCheck
-			);
-		}
-	} else {
-		executable = await getDmypyExecutable(folder, warnIfFailed, currentCheck);
-	}
+	const result = await getExecutableAndArgs(folder, currentCheck, warnIfFailed, true);
+	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter} = result;
 	if (executable === undefined) {
 		return { success: false, stdout: null };
 	}
@@ -358,6 +342,29 @@ async function runDmypy(
 	}
 }
 
+async function getExecutableAndArgs(folder: vscode.Uri, currentCheck: number | undefined, warnIfFailed: boolean, daemon: boolean) {
+	const activeInterpreter = await getActiveInterpreter(folder, currentCheck);
+	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
+	let executable: string | undefined;
+	const runUsingActiveInterpreter = mypyConfig.get<boolean>('runUsingActiveInterpreter');
+	let executionArgs: string[] = [];
+	if (runUsingActiveInterpreter) {
+		executable = activeInterpreter;
+		const moduleName = daemon ? "mypy.dmypy" : "mypy";
+		executionArgs = ["-m", moduleName];
+		if (executable === undefined) {
+			warn(
+				"Could not run mypy: no active interpreter. Please activate an interpreter in the " +
+				"Python extension or switch off the mypy.runUsingActiveInterpreter setting.",
+				warnIfFailed, currentCheck
+			);
+		}
+	} else {
+		executable = await getDmypyExecutable(folder, warnIfFailed, daemon, currentCheck);
+	}
+	return {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter};
+}
+
 async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, statusFilePath: string | null) {
 	const killResult = await runDmypy(folder, "kill", undefined, undefined, undefined, undefined, currentCheck, false);
 	output(`Ran dmypy kill, stdout: ${killResult.stdout}`, currentCheck);
@@ -390,17 +397,21 @@ async function restartAndRecheckWorkspace() {
 	await recheckWorkspace();
 }
 
-async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, currentCheck?: number): Promise<string | undefined> {
+async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, daemon: boolean, currentCheck?: number): Promise<string | undefined> {
+	const displayName = daemon ? 'mypy daemon' : 'mypy';
+	const configName = daemon ? 'dmypyExecutable' : 'mypyExecutable';
+	const defaultExeName = daemon ? 'dmypy' : 'mypy';
+
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
-	let dmypyExecutable = mypyConfig.get<string>('dmypyExecutable') ?? 'dmypy';
+	let dmypyExecutable = mypyConfig.get<string>(configName) ?? defaultExeName;
 	let helpURL = "https://github.com/matangover/mypy-vscode#installing-mypy";
 	const isCommand = path.parse(dmypyExecutable).dir === '';
 	if (isCommand) {
 		const executable = await lookpath(dmypyExecutable);
 		if (executable === undefined) {
 			warn(
-				`The mypy daemon executable ('${dmypyExecutable}') was not found on your PATH. ` +
-				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
+				`The ${displayName} executable ('${dmypyExecutable}') was not found on your PATH. ` +
+				`Please install mypy or adjust the mypy.${configName} setting.`,
 				warnIfFailed, currentCheck, undefined, helpURL
 			)
 			return undefined;
@@ -410,8 +421,8 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 		dmypyExecutable = untildify(dmypyExecutable).replace('${workspaceFolder}', folder.fsPath)
 		if (!fs.existsSync(dmypyExecutable)) {
 			warn(
-				`The mypy daemon executable ('${dmypyExecutable}') was not found. ` +
-				`Please install mypy or adjust the mypy.dmypyExecutable setting.`,
+				`The ${displayName} executable ('${dmypyExecutable}') was not found. ` +
+				`Please install mypy or adjust the mypy.${configName} setting.`,
 				warnIfFailed, currentCheck, undefined, helpURL
 			)
 			return undefined;
@@ -425,68 +436,52 @@ async function checkAllNotebooks() {
 }
 
 async function checkNotebook(notebook: vscode.NotebookDocument) {
-
-	// we only support these right now
+	// We only support these right now.
 	if (notebook.notebookType !== "jupyter-notebook") {
 		return;
 	}
-
-	// vscode treats each cell as its own document, which makes things a bit more complicated
-	const cells = notebook.getCells().map((cell) => cell.document);
-
-	// we need to combine all of the python into a single string for mypy to check,
-	// but we need to also remember where each part of the string came from
-	//
-	// code is a list of [cellIndex, lineIndex, line], so now we know for each line
-	// of python code which line of which cell it came from
-	const code = cells
-		// remember the cell index
-		.map(
-			(cell, cellIndex) => [cell, cellIndex] as [vscode.TextDocument, number]
-		)
-		// only keep track of python cells
-		.filter(([cell, _cellIndex]) => cell.languageId === "python")
-		// remember the line index
-		.flatMap(([cell, cellIndex]) =>
-			cell
-				.getText()
-				.split("\n")
-				.map(
-					(line, lineIndex) =>
-						[cellIndex, lineIndex, line] as [number, number, string]
-				)
-		)
-		// ignore any cell magics
-		.filter(([_cellIndex, _lineIndex, line]) => !line.startsWith("%"));
-
-	// we currently require a workspace (although for notebooks we probably don't need to...)
 	const folder = vscode.workspace.getWorkspaceFolder(notebook.uri)?.uri;
 	if (!folder) {
 		return;
 	}
-
-	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
-	if (!mypyConfig.get<boolean>("enabled", true)) {
+	const startResult = startCheck(folder, true);
+	if (startResult === undefined) {
 		return;
 	}
+	const {currentCheck, mypyConfig} = startResult;
+	output(`Check notebook: ${notebook.uri.fsPath}`, currentCheck);
 
-	const interpreter = await getActiveInterpreter(folder);
-	if (!interpreter) {
+	try {
+		checkNotebookInternal(notebook, folder, currentCheck, mypyConfig);
+	} finally {
+		endCheck();
+	}
+}
+
+async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: vscode.Uri, currentCheck: number, mypyConfig: vscode.WorkspaceConfiguration) {
+	// vscode treats each cell as its own document, which makes things a bit more complicated.
+	const cells = notebook.getCells().map((cell) => cell.document);
+
+	// We need to combine all of the python into a single string for mypy to check,
+	// but we need to also remember where each part of the string came from.
+	// Create a list of {cellIndex, lineIndex, line}, so now we know for each line
+	// of python code which line of which cell it came from.
+	const concatenatedCodeLines = concatenateCodeLines(cells);
+
+	const exeAndArgs = await getExecutableAndArgs(folder, currentCheck, true, false);
+	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter} = exeAndArgs;
+	if (executable === undefined) {
 		return;
 	}
-
-	// we cannot check notebooks with dmypy, but we can use mypy directly
-	// to check a string... here we just concatenate all of the cells and check that,
-	// which seems to be good enough for now, but there may be a case where this doesn't work
-	const result = await spawn(
-		interpreter,
-		[
-			"-m",
-			"mypy",
-			...mypyFormatArgs,
-			"-c",
-			code.map(([_cellIndex, _lineIndex, line]) => line).join("\n"),
-		],
+	// We cannot check notebooks with dmypy, but we can use mypy directly
+	// to check a string... Here we just concatenate all of the cells and check that,
+	// which seems to be good enough for now, but there may be a case where this doesn't work.
+	const mypyArgs = getMypyArgs([], mypyConfig, currentCheck)
+	const concatenatedCode = concatenatedCodeLines.map(c => c.line).join("\n");
+	const args = [...executionArgs, ...mypyFormatArgs, ...mypyArgs, "-c", concatenatedCode];
+	const spawnResult = await spawn(
+		executable,
+		args,
 		{
 			cwd: folder.fsPath,
 			capture: ["stdout", "stderr"],
@@ -494,20 +489,44 @@ async function checkNotebook(notebook: vscode.NotebookDocument) {
 		}
 	).catch(() => null);
 
-	if (!result) {
+	if (!spawnResult) {
 		return;
 	}
 
-	const cellDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
+	const mypyOutput = parseMypyOutput(spawnResult.stdout, folder);
+	const cellDiagnostics = getCellDiagnostics(mypyOutput, concatenatedCodeLines, cells);
 
-	const output = parseMypyOutput(result.stdout, folder);
+	const folderDiagnostics = getWorkspaceDiagnostics(folder);
+	cells.forEach((cell) => folderDiagnostics.set(cell.uri, undefined));
 	
-	for (const entry of output.entries()) {
-		for (const diagnostic of entry[1]) {
-			const [startCellIndex, startLineIndex, _startLine] =
-				code[diagnostic.range.start.line];
-			const [endCellIndex, endLineIndex, _endLine] =
-				code[diagnostic.range.start.line];
+	for (const [cellUri, cellDiags] of cellDiagnostics) {
+		folderDiagnostics.set(cellUri, cellDiags);
+	}
+}
+
+function concatenateCodeLines(cells: vscode.TextDocument[]) {
+	return cells
+		// remember the cell index
+		.map((cell, cellIndex) => ({ cell, cellIndex }))
+		// only keep track of python cells
+		.filter(c => c.cell.languageId === "python")
+		// remember the line index
+		.flatMap(c => (
+				c.cell.getText().split("\n").map(
+					(line, lineIndex) => ({ cellIndex: c.cellIndex, lineIndex, line })
+				)
+			)
+		)
+		// ignore any cell magics
+		.filter(c => !c.line.startsWith("%"));
+}
+
+function getCellDiagnostics(mypyOutput: Map<vscode.Uri, vscode.Diagnostic[]>, concatenatedCodeLines: { cellIndex: number; lineIndex: number; line: string; }[], cells: vscode.TextDocument[]) {
+	const cellDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
+	for (const [uri, diagnostics] of mypyOutput) {
+		for (const diagnostic of diagnostics) {
+			const startLine = concatenatedCodeLines[diagnostic.range.start.line];
+			const endLine = concatenatedCodeLines[diagnostic.range.start.line];
 
 			// this should never happen, but technically could if someone wrote something like
 			// # cell 1
@@ -523,41 +542,34 @@ async function checkNotebook(notebook: vscode.NotebookDocument) {
 			//
 			// TODO maybe we can sprinkle in some left-aligned pass
 			// statements to prevent cases like that
-			if (startCellIndex !== endCellIndex) {
+			if (startLine.cellIndex !== endLine.cellIndex) {
 				continue;
 			}
 
-			const cellUri = cells[startCellIndex].uri;
+			// We need to remap the positions of each diagnostic message
+			// to the correct line of the correct cell.
+			const newDiagnostic = new vscode.Diagnostic(
+				new vscode.Range(
+					new vscode.Position(
+						startLine.lineIndex,
+						diagnostic.range.start.character
+					),
+					new vscode.Position(endLine.lineIndex, diagnostic.range.end.character)
+				),
+				diagnostic.message,
+				diagnostic.severity
+			);
+			newDiagnostic.code = diagnostic.code;
+			newDiagnostic.source = diagnostic.source;
+
+			const cellUri = cells[startLine.cellIndex].uri;
 			if (!cellDiagnostics.has(cellUri)) {
 				cellDiagnostics.set(cellUri, []);
 			}
-
-			// we need to remap the positions of each diagnostic message
-			// to the correct line of the correct cell
-			cellDiagnostics
-				.get(cellUri)!
-				.push(
-					new vscode.Diagnostic(
-						new vscode.Range(
-							new vscode.Position(
-								startLineIndex,
-								diagnostic.range.start.character
-							),
-							new vscode.Position(endLineIndex, diagnostic.range.end.character)
-						),
-						diagnostic.message,
-						diagnostic.severity
-					)
-				);
+			cellDiagnostics.get(cellUri)!.push(newDiagnostic);
 		}
 	}
-
-	const folderDiagnostics = getWorkspaceDiagnostics(folder);
-	cells.forEach((cell) => folderDiagnostics.set(cell.uri, undefined));
-	
-	for (const [cellUri, cellDiags] of cellDiagnostics) {
-		folderDiagnostics.set(cellUri, cellDiags);
-	}
+	return cellDiagnostics;
 }
 
 function documentSaved(document: vscode.TextDocument): void {
@@ -609,42 +621,15 @@ async function checkWorkspace(folder: vscode.Uri) {
 }
 
 async function checkWorkspaceInternal(folder: vscode.Uri) {
-	if (!activated) {
-		// This can happen if a check was queued right before the extension was deactivated.
-		// We don't want to check in that case since it would cause a zombie daemon.
-		output(`Extension is not activated, not checking: ${folder.fsPath}`);
+	const startResult = startCheck(folder);
+	if (startResult === undefined) {
 		return;
 	}
-
-	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
-	if (!mypyConfig.get<boolean>("enabled", true)) {
-		output(`Mypy disabled for folder: ${folder.fsPath}`);
-		const folderDiagnostics = diagnostics.get(folder);
-		if (folderDiagnostics) {
-			folderDiagnostics.clear();
-		}
-		return;
-	}
-
-	statusBarItem!.show();
-	activeChecks++;
-	const currentCheck = checkIndex;
-	checkIndex++;
-
+	const {currentCheck, mypyConfig} = startResult;
 	output(`Check folder: ${folder.fsPath}`, currentCheck);
 
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = [...targets, ...mypyFormatArgs];
-	const configFile = mypyConfig.get<string>("configFile");
-	if (configFile) {
-		output(`Using config file: ${configFile}`, currentCheck);
-		mypyArgs.push('--config-file', configFile);
-	}
-	const extraArguments = mypyConfig.get<string[]>("extraArguments");
-	if (extraArguments !== undefined && extraArguments.length > 0) {
-		output(`Using extra arguments: ${extraArguments}`, currentCheck);
-		mypyArgs.push(...extraArguments);
-	}
+	const mypyArgs = getMypyArgs(targets, mypyConfig, currentCheck);
 	const result = await runDmypy(
 		folder,
 		'run',
@@ -655,23 +640,74 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		currentCheck
 	);
 
-	activeChecks--;
-	if (activeChecks == 0) {
-		statusBarItem!.hide();
-	}
+	endCheck();
 
 	if (result.stdout !== null) {
 		output(`Mypy output:\n${result.stdout ?? "\n"}`, currentCheck);
 	}
 	const folderDiagnostics = getWorkspaceDiagnostics(folder);
-	folderDiagnostics.clear();
+	for (const [fileUri, diagnostics] of folderDiagnostics) {
+		if (!fileUri.path.endsWith(".ipynb")) {
+			folderDiagnostics.delete(fileUri);
+		}
+	}
 	if (result.success && result.stdout) {
 		const fileDiagnostics = parseMypyOutput(result.stdout, folder);
 		folderDiagnostics.set(Array.from(fileDiagnostics.entries()));
 	}
+}
 
-	// need to recheck notebooks here, otherwise we clear the diagnostics
-	checkAllNotebooks();
+function getMypyArgs(targets: string[], mypyConfig: vscode.WorkspaceConfiguration, currentCheck: number) {
+	const mypyArgs = [...targets, ...mypyFormatArgs];
+	const configFile = mypyConfig.get<string>("configFile");
+	if (configFile) {
+		output(`Using config file: ${configFile}`, currentCheck);
+		mypyArgs.push('--config-file', configFile);
+	}
+
+	const extraArguments = mypyConfig.get<string[]>("extraArguments");
+	if (extraArguments !== undefined && extraArguments.length > 0) {
+		output(`Using extra arguments: ${extraArguments}`, currentCheck);
+		mypyArgs.push(...extraArguments);
+	}
+	return mypyArgs;
+}
+
+function startCheck(folder: vscode.Uri, notebook: boolean = false) {
+	if (!activated) {
+		// This can happen if a check was queued right before the extension was deactivated.
+		// We don't want to check in that case since it would cause a zombie daemon.
+		output(`Extension is not activated, not checking: ${folder.fsPath}`);
+		return undefined;
+	}
+
+	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
+	if (!mypyConfig.get<boolean>("enabled", true)) {
+		output(`Mypy disabled for folder: ${folder.fsPath}`);
+		const folderDiagnostics = diagnostics.get(folder);
+		if (folderDiagnostics) {
+			folderDiagnostics.clear();
+		}
+		return undefined;
+	}
+
+	if (notebook && !mypyConfig.get<boolean>("checkNotebooks", false)) {
+		output(`Not checking notebook, checkNotebooks is false.`);
+		return undefined;
+	}
+
+	statusBarItem!.show();
+	activeChecks++;
+	const currentCheck = checkIndex;
+	checkIndex++;
+	return {currentCheck, mypyConfig};
+}
+
+function endCheck() {
+	activeChecks--;
+	if (activeChecks == 0) {
+		statusBarItem!.hide();
+	}
 }
 
 function parseMypyOutput(stdout: string, folder: vscode.Uri) {
@@ -923,6 +959,7 @@ async function filesChanged(files: readonly vscode.Uri[], created = false) {
 	const foldersString = Array.from(folders).map(f => f.fsPath).join(", ");
 	output(`Files changed in folders: ${foldersString}`);
 	await forEachFolder(Array.from(folders), folder => checkWorkspace(folder));
+	// TODO: Also recheck notebooks.
 }
 
 function output(line: string, currentCheck?: number) {
