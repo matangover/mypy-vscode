@@ -21,6 +21,13 @@ let checkIndex = 1;
 let activated = false;
 let logFile: string | undefined;
 
+const mypyFormatArgs = [
+	"--show-error-end",
+	"--no-error-summary",
+	"--no-pretty",
+	"--no-color-output",
+];
+
 type ChildProcessError = {code: number | undefined, stdout: string | undefined, stderr: string | undefined};
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -54,6 +61,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeWorkspaceFolders(workspaceFoldersChanged),
+		vscode.workspace.onDidOpenNotebookDocument(checkNotebook),
+		vscode.workspace.onDidSaveNotebookDocument(checkNotebook),
 		vscode.workspace.onDidSaveTextDocument(documentSaved),
 		vscode.workspace.onDidDeleteFiles(filesDeleted),
 		vscode.workspace.onDidRenameFiles(filesRenamed),
@@ -69,6 +78,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// important because if VS Code is closed before the checks are done, deactivate will only be
 	// called if activate has already finished.
 	forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
+
+	// similarly, do not await this either
+	checkAllNotebooks()
+
 	output('Activation complete');
 }
 
@@ -407,6 +420,146 @@ async function getDmypyExecutable(folder: vscode.Uri, warnIfFailed: boolean, cur
 	return dmypyExecutable;
 }
 
+async function checkAllNotebooks() {
+	await Promise.all(vscode.workspace.notebookDocuments.map(notebook => checkNotebook(notebook)));
+}
+
+async function checkNotebook(notebook: vscode.NotebookDocument) {
+
+	// we only support these right now
+	if (notebook.notebookType !== "jupyter-notebook") {
+		return;
+	}
+
+	// vscode treats each cell as its own document, which makes things a bit more complicated
+	const cells = notebook.getCells().map((cell) => cell.document);
+
+	// we need to combine all of the python into a single string for mypy to check,
+	// but we need to also remember where each part of the string came from
+	//
+	// code is a list of [cellIndex, lineIndex, line], so now we know for each line
+	// of python code which line of which cell it came from
+	const code = cells
+		// remember the cell index
+		.map(
+			(cell, cellIndex) => [cell, cellIndex] as [vscode.TextDocument, number]
+		)
+		// only keep track of python cells
+		.filter(([cell, _cellIndex]) => cell.languageId === "python")
+		// remember the line index
+		.flatMap(([cell, cellIndex]) =>
+			cell
+				.getText()
+				.split("\n")
+				.map(
+					(line, lineIndex) =>
+						[cellIndex, lineIndex, line] as [number, number, string]
+				)
+		)
+		// ignore any cell magics
+		.filter(([_cellIndex, _lineIndex, line]) => !line.startsWith("%"));
+
+	// we currently require a workspace (although for notebooks we probably don't need to...)
+	const folder = vscode.workspace.getWorkspaceFolder(notebook.uri)?.uri;
+	if (!folder) {
+		return;
+	}
+
+	const mypyConfig = vscode.workspace.getConfiguration("mypy", folder);
+	if (!mypyConfig.get<boolean>("enabled", true)) {
+		return;
+	}
+
+	const interpreter = await getActiveInterpreter(folder);
+	if (!interpreter) {
+		return;
+	}
+
+	// we cannot check notebooks with dmypy, but we can use mypy directly
+	// to check a string... here we just concatenate all of the cells and check that,
+	// which seems to be good enough for now, but there may be a case where this doesn't work
+	const result = await spawn(
+		interpreter,
+		[
+			"-m",
+			"mypy",
+			...mypyFormatArgs,
+			"-c",
+			code.map(([_cellIndex, _lineIndex, line]) => line).join("\n"),
+		],
+		{
+			cwd: folder.fsPath,
+			capture: ["stdout", "stderr"],
+			successfulExitCodes: [0, 1, 2],
+		}
+	).catch(() => null);
+
+	if (!result) {
+		return;
+	}
+
+	const cellDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
+
+	const output = parseMypyOutput(result.stdout, folder);
+	
+	for (const entry of output.entries()) {
+		for (const diagnostic of entry[1]) {
+			const [startCellIndex, startLineIndex, _startLine] =
+				code[diagnostic.range.start.line];
+			const [endCellIndex, endLineIndex, _endLine] =
+				code[diagnostic.range.start.line];
+
+			// this should never happen, but technically could if someone wrote something like
+			// # cell 1
+			// def my_func() -> None:
+			//   pass
+			//
+			// # cell 2
+			//   return 6
+			//
+			// since we concatenate, we will get an error that we are returning in a function
+			// that should return None rather than a syntax error that we have indented and
+			// returned outside of a function
+			//
+			// TODO maybe we can sprinkle in some left-aligned pass
+			// statements to prevent cases like that
+			if (startCellIndex !== endCellIndex) {
+				continue;
+			}
+
+			const cellUri = cells[startCellIndex].uri;
+			if (!cellDiagnostics.has(cellUri)) {
+				cellDiagnostics.set(cellUri, []);
+			}
+
+			// we need to remap the positions of each diagnostic message
+			// to the correct line of the correct cell
+			cellDiagnostics
+				.get(cellUri)!
+				.push(
+					new vscode.Diagnostic(
+						new vscode.Range(
+							new vscode.Position(
+								startLineIndex,
+								diagnostic.range.start.character
+							),
+							new vscode.Position(endLineIndex, diagnostic.range.end.character)
+						),
+						diagnostic.message,
+						diagnostic.severity
+					)
+				);
+		}
+	}
+
+	const folderDiagnostics = getWorkspaceDiagnostics(folder);
+	cells.forEach((cell) => folderDiagnostics.set(cell.uri, undefined));
+	
+	for (const [cellUri, cellDiags] of cellDiagnostics) {
+		folderDiagnostics.set(cellUri, cellDiags);
+	}
+}
+
 function documentSaved(document: vscode.TextDocument): void {
 	const folder = vscode.workspace.getWorkspaceFolder(document.uri);
 	if (!folder) {
@@ -481,7 +634,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	output(`Check folder: ${folder.fsPath}`, currentCheck);
 
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = [...targets, '--show-error-end', '--no-error-summary', '--no-pretty', '--no-color-output'];
+	const mypyArgs = [...targets, ...mypyFormatArgs];
 	const configFile = mypyConfig.get<string>("configFile");
 	if (configFile) {
 		output(`Using config file: ${configFile}`, currentCheck);
@@ -516,6 +669,9 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 		const fileDiagnostics = parseMypyOutput(result.stdout, folder);
 		folderDiagnostics.set(Array.from(fileDiagnostics.entries()));
 	}
+
+	// need to recheck notebooks here, otherwise we clear the diagnostics
+	checkAllNotebooks();
 }
 
 function parseMypyOutput(stdout: string, folder: vscode.Uri) {

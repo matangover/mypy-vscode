@@ -125,7 +125,7 @@
         "@types/mocha": "^9.0.0",
         "@types/node": "^12.11.7",
         "@types/promise.allsettled": "^1.0.3",
-        "@types/vscode": "^1.46.0",
+        "@types/vscode": "^1.90.0",
         "mocha": "^9.1.2",
         "typescript": "^4.0.2"
     },
