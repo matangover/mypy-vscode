@@ -505,7 +505,20 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 		)
 	} catch (e: any) {
 		output(`Error running mypy on notebook: ${e.toString()}`, currentCheck);
+		if (e.name === 'ChildProcessError') {
+			const ex = e as ChildProcessError;
+			if (ex.stdout) {
+				output(`stdout:\n${ex.stdout}`, currentCheck);
+			}
+			if (ex.stderr) {
+				output(`stderr:\n${ex.stderr}`, currentCheck);
+			}
+		}
 		return;
+	}
+	output(`Mypy stdout:\n${spawnResult.stdout}`, currentCheck);
+	if (spawnResult.stderr) {
+		output(`Mypy stderr:\n${spawnResult.stderr}`, currentCheck);
 	}
 	const mypyOutput = parseMypyOutput(spawnResult.stdout, folder);
 	const cellDiagnostics = getCellDiagnostics(mypyOutput, concatenatedCodeLines, cells);
