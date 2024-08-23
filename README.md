@@ -52,12 +52,12 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 ## Experimental: Type Checking in Notebooks
 
-This extension can also run mypy on Python code cells in Jupyter Notebooks. To enable this feature, set `mypy.checkNotebooks` to `true`. Notebooks are type checked when they're opened or saved.
+This extension can also run mypy on Python code cells in Jupyter notebooks. To enable this feature, set `mypy.checkNotebooks` to `true`. Notebooks are type checked when they're opened or saved.
 
 For notebooks, we use mypy rather than dmypy. Use the `mypy.mypyExecutable` setting to control the mypy executable path. Most settings like `mypy.runUsingActiveInterpreter`, `mypy.configFile`, `mypy.extraArguments` are honored for notebooks too.
 
 There are a couple of known issues:
-* Notebook checking works by concatenating all code cells into a single document. This means that some errors may be reported on the wrong line, or that invalid code could appear valid or vice versa.
+* Notebook checking works by concatenating all code cells into a single document. This means that some errors may be reported on the wrong line, or that invalid code could appear valid or vice versa. It also means that if one cell has a syntax error, the rest of the notebook won't be checked.
 * The extension can't access the Python interpreter selected for a notebook, so it uses the interpreter selected in the workspace instead. This may cause wrong type checking, e.g. a package will appear to be missing even though it is installed in the notebook's environment.
 
 
