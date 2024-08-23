@@ -606,15 +606,20 @@ function getCellDiagnostics(mypyOutput: Map<vscode.Uri, vscode.Diagnostic[]>, co
 	return cellDiagnostics;
 }
 
-function documentSaved(document: vscode.TextDocument): void {
+async function documentSaved(document: vscode.TextDocument): Promise<void> {
 	const folder = vscode.workspace.getWorkspaceFolder(document.uri);
 	if (!folder) {
 		return;
 	}
 
-	if (document.languageId == "python" || isMaybeConfigFile(folder, document.fileName)) {
+	const configChanged = isMaybeConfigFile(folder, document.fileName);
+	if (document.languageId == "python" || configChanged) {
 		output(`Document saved: ${document.uri.fsPath}`);
-		checkWorkspace(folder.uri);
+		await checkWorkspace(folder.uri);
+	}
+	if (configChanged) {
+		output("Config file saved, checking notebooks");
+		await checkFolderNotebooks(folder.uri);
 	}
 }
 
