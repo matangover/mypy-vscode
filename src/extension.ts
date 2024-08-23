@@ -482,6 +482,9 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 	}
 	const concatenatedCode = concatenatedCodeLines.map(c => c.line).join("\n");
 	const args = [...executionArgs, ...mypyFormatArgs, ...mypyArgs, "-c", concatenatedCode];
+	const argsForPrint = [...args.slice(0, -1), `<< code (${concatenatedCodeLines.length} lines) >>`];
+	const command = [executable, ...argsForPrint].map(quote).join(" ");
+	output(`Running mypy in folder ${folder.fsPath}\n${command}`, currentCheck);
 	let spawnResult;
 	try {
 		spawnResult = await spawn(
@@ -501,8 +504,15 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 	const cellDiagnostics = getCellDiagnostics(mypyOutput, concatenatedCodeLines, cells);
 
 	const folderDiagnostics = getWorkspaceDiagnostics(folder);
-	cells.forEach((cell) => folderDiagnostics.set(cell.uri, undefined));
-	
+	// Remove existing diagnostics for this notebook's cells.
+	cells.forEach((cell) => folderDiagnostics.delete(cell.uri));
+	// Remove any remaining diagnostics (can happen if a cell was deleted).
+	for (const [fileUri, diagnostics] of folderDiagnostics) {
+		if (fileUri.scheme === "vscode-notebook-cell" && fileUri.path === notebook.uri.path) {
+			folderDiagnostics.delete(fileUri);
+		}
+	}
+	// Add the new diagnostics.
 	for (const [cellUri, cellDiags] of cellDiagnostics) {
 		folderDiagnostics.set(cellUri, cellDiags);
 	}
