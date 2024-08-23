@@ -435,6 +435,13 @@ async function checkAllNotebooks() {
 	await Promise.all(vscode.workspace.notebookDocuments.map(notebook => checkNotebook(notebook)));
 }
 
+async function checkFolderNotebooks(folder: vscode.Uri) {
+	const notebooks = vscode.workspace.notebookDocuments.filter(
+		notebook => vscode.workspace.getWorkspaceFolder(notebook.uri)?.uri == folder);
+	await Promise.all(notebooks.map(notebook => checkNotebook(notebook)));
+	// TODO: remove diagnostics for notebooks that no longer exist.
+}
+
 async function checkNotebook(notebook: vscode.NotebookDocument) {
 	// We only support these right now.
 	if (notebook.notebookType !== "jupyter-notebook") {
@@ -618,7 +625,7 @@ function isConfigFileName(file: string) {
 	return name == "mypy.ini" || name == ".mypy.ini" || name == "setup.cfg" || name == "config";
 }
 
-function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
+async function configurationChanged(event: vscode.ConfigurationChangeEvent): Promise<void> {
 	const folders = vscode.workspace.workspaceFolders ?? [];
 	const affectedFolders = folders.filter(folder => event.affectsConfiguration("mypy", folder));
 	if (affectedFolders.length === 0) {
@@ -626,7 +633,8 @@ function configurationChanged(event: vscode.ConfigurationChangeEvent): void {
 	}
 	const affectedFoldersString = affectedFolders.map(f => f.uri.fsPath).join(", ");
 	output(`Mypy settings changed: ${affectedFoldersString}`);
-	forEachFolder(affectedFolders, folder => checkWorkspace(folder.uri));
+	await forEachFolder(affectedFolders, folder => checkWorkspace(folder.uri));
+	await forEachFolder(affectedFolders, folder => checkFolderNotebooks(folder.uri));
 }
 
 async function checkWorkspace(folder: vscode.Uri) {
@@ -955,7 +963,7 @@ async function filesChanged(files: readonly vscode.Uri[], created = false) {
 			continue;
 		
 		const path = file.fsPath;
-		if (path.endsWith(".py") || path.endsWith(".pyi")) {
+		if (path.endsWith(".py") || path.endsWith(".pyi") || path.endsWith(".ipynb")) {
 			folders.add(folder.uri);
 		} else if (isMaybeConfigFile(folder, path)) {
 			// Don't trigger mypy run if config file has just been created and is empty, because
@@ -972,8 +980,9 @@ async function filesChanged(files: readonly vscode.Uri[], created = false) {
 	}
 	const foldersString = Array.from(folders).map(f => f.fsPath).join(", ");
 	output(`Files changed in folders: ${foldersString}`);
-	await forEachFolder(Array.from(folders), folder => checkWorkspace(folder));
-	// TODO: Also recheck notebooks.
+	const folderArray = Array.from(folders);
+	await forEachFolder(folderArray, folder => checkWorkspace(folder));
+	await forEachFolder(folderArray, folder => checkFolderNotebooks(folder));
 }
 
 function output(line: string, currentCheck?: number) {
