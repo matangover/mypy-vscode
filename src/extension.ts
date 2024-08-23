@@ -10,6 +10,8 @@ import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
 import {MypyOutputLine, mypyOutputPattern} from './mypy';
 import {IExtensionApi, ActiveEnvironmentPathChangeEvent} from './python';
+import type { Jupyter, Kernel } from '@vscode/jupyter-extension';
+import { JupyterAPI } from './jupyter';
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
@@ -991,4 +993,42 @@ function output(line: string, currentCheck?: number) {
 
 function sleep(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+async function getNotebookInterpreter(notebook: vscode.NotebookDocument) {
+	outputChannel.appendLine("Getting notebook interpreter");
+	const jupyterExt = vscode.extensions.getExtension<Jupyter>('ms-toolsai.jupyter');
+	if (!jupyterExt?.isActive) {
+		return;
+	}
+	outputChannel.appendLine("Jupyter extension is active");
+	const kernel = await jupyterExt.exports.kernels.getKernel(notebook.uri);
+	if (!kernel) {
+		return;
+	}
+	outputChannel.appendLine("Got kernel");
+	const token = new vscode.CancellationTokenSource();
+	outputChannel.appendLine("Executing code");
+	const iterator = kernel.executeCode("import sys\nprint(sys.executable)", token.token);
+	for await (const num of iterator) {
+		outputChannel.appendLine(`Got result line: ${num.items[0].}`);
+	}
+	outputChannel.appendLine("Finished iterable");
+
+	// Need permission to use this api lol
+	// const extension = vscode.extensions.getExtension<JupyterAPI>('ms-toolsai.jupyter');
+	// if (extension?.isActive) {
+	// 	outputChannel.appendLine("Jupyter API extension is active");
+	// 	// await extension.activate();
+	// 	const kernelService = await extension.exports.getKernelService();
+	// 	outputChannel.appendLine("Getting kernel");
+	// 	try {
+	// 		const kernel = kernelService?.getKernel(notebook.uri);
+	// 		outputChannel.appendLine("Got it, reading");
+	// 		const path = kernel?.metadata.interpreter?.envPath?.fsPath;
+	// 		outputChannel.appendLine(`GOt path: ${path}`);
+	// 	} catch (e: any) {
+	// 		outputChannel.appendLine("Error getting kernel: " + e.toString());
+	// 	}
+	// }
 }
