@@ -459,6 +459,9 @@ async function checkNotebook(notebook: vscode.NotebookDocument) {
 }
 
 async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: vscode.Uri, currentCheck: number, mypyConfig: vscode.WorkspaceConfiguration) {
+	// We cannot check notebooks with dmypy, but we can use mypy directly
+	// to check a string... Here we just concatenate all of the cells and check that,
+	// which seems to be good enough for now, but there may be a case where this doesn't work.
 	// vscode treats each cell as its own document, which makes things a bit more complicated.
 	const cells = notebook.getCells().map((cell) => cell.document);
 
@@ -473,26 +476,27 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 	if (executable === undefined) {
 		return;
 	}
-	// We cannot check notebooks with dmypy, but we can use mypy directly
-	// to check a string... Here we just concatenate all of the cells and check that,
-	// which seems to be good enough for now, but there may be a case where this doesn't work.
-	const mypyArgs = getMypyArgs([], mypyConfig, currentCheck)
+	let mypyArgs = getMypyArgs([], mypyConfig, currentCheck)
+	if (activeInterpreter) {
+		mypyArgs = ['--python-executable', activeInterpreter, ...mypyArgs];
+	}
 	const concatenatedCode = concatenatedCodeLines.map(c => c.line).join("\n");
 	const args = [...executionArgs, ...mypyFormatArgs, ...mypyArgs, "-c", concatenatedCode];
-	const spawnResult = await spawn(
-		executable,
-		args,
-		{
-			cwd: folder.fsPath,
-			capture: ["stdout", "stderr"],
-			successfulExitCodes: [0, 1, 2],
-		}
-	).catch(() => null);
-
-	if (!spawnResult) {
+	let spawnResult;
+	try {
+		spawnResult = await spawn(
+			executable,
+			args,
+			{
+				cwd: folder.fsPath,
+				capture: ["stdout", "stderr"],
+				successfulExitCodes: [0, 1, 2],
+			}
+		)
+	} catch (e: any) {
+		output(`Error running mypy on notebook: ${e.toString()}`, currentCheck);
 		return;
 	}
-
 	const mypyOutput = parseMypyOutput(spawnResult.stdout, folder);
 	const cellDiagnostics = getCellDiagnostics(mypyOutput, concatenatedCodeLines, cells);
 
