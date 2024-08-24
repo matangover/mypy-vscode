@@ -50,7 +50,7 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.debugLogging`: Enable debug logging for the extension. (Reload the window after changing this setting.)
 
-## Experimental: Type Checking in Notebooks
+## Experimental: Type checking in notebooks
 
 This extension can also run mypy on Python code cells in Jupyter notebooks. To enable this feature, set `mypy.checkNotebooks` to `true`. Notebooks are type checked when they're opened or saved.
 
