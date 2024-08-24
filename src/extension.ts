@@ -551,8 +551,8 @@ function concatenateCodeLines(cells: vscode.TextDocument[]) {
 				)
 			)
 		)
-		// ignore any cell magics
-		.filter(c => !c.line.startsWith("%"));
+		// ignore any cell magics or commands
+		.filter(c => !c.line.startsWith("%") && !c.line.startsWith("!"));
 }
 
 function getCellDiagnostics(mypyOutput: Map<vscode.Uri, vscode.Diagnostic[]>, concatenatedCodeLines: { cellIndex: number; lineIndex: number; line: string; }[], cells: vscode.TextDocument[]) {
