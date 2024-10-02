@@ -386,15 +386,16 @@ async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, 
 }
 
 async function recheckWorkspace() {
-	output("Rechecking workspace");
 	// if the user has chosen custom roots with `mypy.roots`, and there is only one workspace folder, check those roots.
 	const mypyConfig = vscode.workspace.getConfiguration('mypy');
 	const roots = mypyConfig.get<string[]>("roots", []);
 	if (roots.length > 0 && vscode.workspace.workspaceFolders?.length === 1) {
+		output("Rechecking custom roots");
 		const base = vscode.workspace.workspaceFolders[0];
 		const folders = roots.map(root => vscode.Uri.file(path.join(base.uri.fsPath, root)));
 		await forEachFolder(folders, folder => checkWorkspace(folder));
 	} else {
+		output("Rechecking workspace");
 		await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
 	}
 	output("Recheck complete");
