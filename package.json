@@ -60,6 +60,12 @@
                     "scope": "resource",
                     "markdownDescription": "Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html."
                 },
+                "mypy.envFile": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "resource",
+                    "markdownDescription": "Env file, relative to the workspace folder. Useful for setting environment variables for the mypy process."
+                },
                 "mypy.targets": {
                     "type": "array",
                     "default": [
@@ -144,6 +150,7 @@
     "dependencies": {
         "async-lock": "^1.2.8",
         "child-process-promise": "^2.2.1",
+        "envfile": "^7.1.0",
         "lookpath": "^1.2.0",
         "promise.allsettled": "^1.0.4",
         "shlex": "^2.0.2",

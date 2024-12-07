@@ -5,11 +5,13 @@ import { spawn } from 'child-process-promise';
 import * as fs from 'fs';
 import { lookpath } from 'lookpath';
 import untildify = require('untildify');
+import { parse } from 'envfile';
 import { quote } from 'shlex';
 import * as AsyncLock from 'async-lock';
 import * as allSettled from 'promise.allsettled';
 import {MypyOutputLine, mypyOutputPattern} from './mypy';
 import {IExtensionApi, ActiveEnvironmentPathChangeEvent} from './python';
+import ProcessEnv = NodeJS.ProcessEnv;
 
 const diagnostics = new Map<vscode.Uri, vscode.DiagnosticCollection>();
 const outputChannel = vscode.window.createOutputChannel('Mypy');
@@ -188,6 +190,20 @@ async function stopDaemon(folder: vscode.Uri, retry=true): Promise<void> {
 	}
 }
 
+async function loadEnv(filePath: fs.PathLike): Promise<ProcessEnv> {
+	if (!filePath || !(fs.existsSync(filePath))) {
+		return {};
+	}
+
+	const contents = fs.readFileSync(filePath, 'utf8');
+
+	if (!contents) {
+		return {};
+	}
+
+	return parse(contents);
+}
+
 type DmypyCommand = 'start' | 'restart' | 'status' | 'stop' | 'kill' | 'check' | 'run' | 'recheck' | 'suggest' | 'hang' | 'daemon' | 'help';
 
 async function runDmypy(
@@ -221,7 +237,7 @@ async function runDmypy(
 	}
 
 	const result = await getExecutableAndArgs(folder, currentCheck, warnIfFailed, true);
-	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter} = result;
+	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter, envVars} = result;
 	if (executable === undefined) {
 		return { success: false, stdout: null };
 	}
@@ -243,7 +259,8 @@ async function runDmypy(
 			{
 				cwd: folder.fsPath,
 				capture: ['stdout', 'stderr'],
-				successfulExitCodes
+				successfulExitCodes,
+				env: envVars,
 			}
 		);
 		if (result.code == 1 && result.stderr) {
@@ -345,6 +362,12 @@ async function runDmypy(
 async function getExecutableAndArgs(folder: vscode.Uri, currentCheck: number | undefined, warnIfFailed: boolean, daemon: boolean) {
 	const activeInterpreter = await getActiveInterpreter(folder, currentCheck);
 	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
+	const envFileConfig = mypyConfig.get<string>('envFile');
+	let envVars: ProcessEnv = {};
+	if (envFileConfig) {
+		const envFile = untildify(envFileConfig).replace('${workspaceFolder}', folder.fsPath);
+		envVars = await loadEnv(envFile);
+	}
 	let executable: string | undefined;
 	const runUsingActiveInterpreter = mypyConfig.get<boolean>('runUsingActiveInterpreter');
 	let executionArgs: string[] = [];
@@ -362,7 +385,7 @@ async function getExecutableAndArgs(folder: vscode.Uri, currentCheck: number | u
 	} else {
 		executable = await getDmypyExecutable(folder, warnIfFailed, daemon, currentCheck);
 	}
-	return {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter};
+	return {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter, envVars};
 }
 
 async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, statusFilePath: string | null) {
@@ -479,7 +502,7 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 	const concatenatedCodeLines = concatenateCodeLines(cells);
 
 	const exeAndArgs = await getExecutableAndArgs(folder, currentCheck, true, false);
-	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter} = exeAndArgs;
+	const {executable, activeInterpreter, executionArgs, runUsingActiveInterpreter, envVars} = exeAndArgs;
 	if (executable === undefined) {
 		return;
 	}
@@ -501,6 +524,7 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 				cwd: folder.fsPath,
 				capture: ["stdout", "stderr"],
 				successfulExitCodes: [0, 1, 2],
+				env: envVars,
 			}
 		)
 	} catch (e: any) {
