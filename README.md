@@ -38,6 +38,8 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.targets`: specify a list of target files or folders for mypy to analyze. By default the entire workspace folder is checked. You may prefer to use the `files` option in `mypy.ini` to specify which files mypy should analyze. In that case, you should set `mypy.targets` to an empty array (`[]`).
 
+* `mypy.roots`: Specify a list of root folders. Each root is checked by its own mypy daemon. If not set, the workspace folders are used. This is useful for monorepos when you are not using a normal multi-root workspace. This setting is ignored in multi-root workspaces.
+
 * `mypy.dmypyExecutable`: Path to `dmypy` (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: `${workspaceFolder}` and `~` (home directory).
 
 * `mypy.runUsingActiveInterpreter`: Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the `mypy.dmypyExecutable` setting. Note: your code is always checked against the active interpreter – this setting only controls the interpreter used to run dmypy itself.
