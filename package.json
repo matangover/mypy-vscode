@@ -8,7 +8,7 @@
         "url": "https://github.com/matangover/mypy-vscode"
     },
     "license": "MIT",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "publisher": "matangover",
     "icon": "mypy.png",
     "engines": {
@@ -60,12 +60,6 @@
                     "scope": "resource",
                     "markdownDescription": "Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html."
                 },
-                "mypy.envFile": {
-                    "type": "string",
-                    "default": "",
-                    "scope": "resource",
-                    "markdownDescription": "Env file, relative to the workspace folder. Useful for setting environment variables for the mypy process."
-                },
                 "mypy.targets": {
                     "type": "array",
                     "default": [
@@ -104,6 +98,21 @@
                         "type": "string"
                     },
                     "markdownDescription": "A list of extra command-line arguments to append to the `dmypy run` command. Add each argument as a separate item. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html)."
+                },
+                "mypy.env": {
+                    "type": "object",
+                    "default": {},
+                    "scope": "resource",
+                    "markdownDescription": "Environment variables to set when running mypy.",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "mypy.envFile": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "resource",
+                    "markdownDescription": "Path to an env file (relative to the workspace folder) containing environment variables to set when running mypy. Used in addition to the `env` setting. Ignored if the file doesn't exist."
                 }
             }
         },

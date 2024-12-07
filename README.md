@@ -48,6 +48,10 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.enabled`: Enable or disable Mypy checking. For example, you can disable Mypy for a specific workspace or folder.
 
+* `mypy.env`: Environment variables to set when running mypy.
+
+* `mypy.envFile`: Path to an env file (relative to the workspace folder) containing environment variables to set when running mypy. Used in addition to the `env` setting. Ignored if the file doesn't exist.
+
 * `mypy.debugLogging`: Enable debug logging for the extension. (Reload the window after changing this setting.)
 
 ## Experimental: Type checking in notebooks

@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.4.1
+- Add ability to set environment variables using `mypy.env` and `mypy.envFile`. PR [#101](https://github.com/matangover/mypy-vscode/pull/101) by @danlamanna
+
 ## 0.4.0
 
 - Check Python code in Jupyter notebooks. PR [#96](https://github.com/matangover/mypy-vscode/pull/96) by @arikrundquist.
