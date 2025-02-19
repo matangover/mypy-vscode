@@ -210,24 +210,31 @@ async function runDmypy(
 	currentCheck?: number,
 	retryIfDaemonStuck = true
 ): Promise<{ success: boolean, stdout: string | null }> {
+	const mypyConfig = vscode.workspace.getConfiguration('mypy', folder);
 
 	let dmypyGlobalArgs: string[] = [];
 	let dmypyCommandArgs: string[] = [];
-	let statusFilePath: string | null = null;
-	// Store the dmypy status file in the extension's workspace storage folder, instead of the
-	// default location which is .dmypy.json in the cwd.
+	let statusFilePath: string = mypyConfig.get<string>('statusFile', "");
+
 	if (_context?.storageUri !== undefined) {
 		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
 		const folderHash = crypto.createHash('sha1').update(folder.toString()).digest('hex');
-		const statusFileName = `dmypy-${folderHash}-${process.pid}.json`;
-		statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
-		dmypyGlobalArgs = ["--status-file", statusFilePath];
+		if (!statusFilePath) {
+			// Store the dmypy status file in the extension's workspace storage folder, instead of the
+			// default location which is .dmypy.json in the cwd.
+			const statusFileName = `dmypy-${folderHash}-${process.pid}.json`;
+			statusFilePath = path.join(_context.storageUri.fsPath, statusFileName);
+		}
 		const commandsSupportingLog: DmypyCommand[] = ["start", "restart", "run"];
 		if (commandsSupportingLog.includes(dmypyCommand)) {
 			const logFileName = `dmypy-${folderHash}.log`;
 			const logFilePath = path.join(_context.storageUri.fsPath, logFileName);
 			dmypyCommandArgs = ['--log-file', logFilePath];
 		}
+	}
+
+	if (statusFilePath) {
+		dmypyGlobalArgs = ['--status-file', statusFilePath];
 	}
 
 	const result = await getExecutableAndArgs(folder, currentCheck, warnIfFailed, true);
