@@ -316,7 +316,7 @@ async function runDmypy(
 			if (ex.stderr) {
 				output(`stderr:\n${ex.stderr}`, currentCheck);
 				if (ex.stderr.indexOf('Daemon crashed!') != -1) {
-					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' + 
+					error = 'the mypy daemon crashed. This is probably a bug in mypy itself, ' +
 					'see Output panel for details. The daemon will be restarted automatically.'
 					showDetailsButton = true;
 				} else if (ex.stderr.indexOf('There are no .py[i] files in directory') != -1) {
@@ -348,7 +348,7 @@ async function runDmypy(
 						output("Retrying command", currentCheck);
 						return await runDmypy(folder, dmypyCommand, mypyArgs, warnIfFailed, successfulExitCodes, addPythonExecutableArgument, currentCheck, false);
 					} else {
-						error = 'the mypy daemon is stuck. An attempt to kill it and retry failed. ' + 
+						error = 'the mypy daemon is stuck. An attempt to kill it and retry failed. ' +
 						'This is probably a bug in mypy itself, see Output panel for details.';
 						showDetailsButton = true;
 					}
@@ -417,8 +417,18 @@ async function killDaemon(folder: vscode.Uri, currentCheck: number | undefined, 
 }
 
 async function recheckWorkspace() {
-	output("Rechecking workspace");
-	await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
+	// if the user has chosen custom roots with `mypy.roots`, and there is only one workspace folder, check those roots.
+	const mypyConfig = vscode.workspace.getConfiguration('mypy');
+	const roots = mypyConfig.get<string[]>("roots", []);
+	if (roots.length > 0 && vscode.workspace.workspaceFolders?.length === 1) {
+		output("Rechecking custom roots");
+		const base = vscode.workspace.workspaceFolders[0];
+		const folders = roots.map(root => vscode.Uri.file(path.join(base.uri.fsPath, root)));
+		await forEachFolder(folders, folder => checkWorkspace(folder));
+	} else {
+		output("Rechecking workspace");
+		await forEachFolder(vscode.workspace.workspaceFolders, folder => checkWorkspace(folder.uri));
+	}
 	output("Recheck complete");
 }
 
@@ -797,7 +807,7 @@ function parseMypyOutput(stdout: string, folder: vscode.Uri) {
 			}
 		}
 	});
-	
+
 	let fileDiagnostics = new Map<vscode.Uri, vscode.Diagnostic[]>();
 	for (const line of outputLines) {
 		const diagnostic = createDiagnostic(line);
@@ -827,7 +837,7 @@ function getLinkUrl(line: MypyOutputLine) {
 
 function getFileUri(filePath: string, folder: vscode.Uri) {
 	// By default mypy outputs paths relative to the checked folder. If the user specifies
-	// `show_absolute_path = True` in the config file, mypy outputs absolute paths.	
+	// `show_absolute_path = True` in the config file, mypy outputs absolute paths.
 	if (!path.isAbsolute(filePath)) {
 		filePath = path.join(folder.fsPath, filePath);
 	}
@@ -855,7 +865,7 @@ function createDiagnostic(line: MypyOutputLine) {
 		}
 	}
 	const range = new vscode.Range(lineNo, column, endLineNo, endColumn);
-	
+
 	const diagnostic = new vscode.Diagnostic(
 		range,
 		line.message,
@@ -1011,7 +1021,7 @@ async function filesChanged(files: readonly vscode.Uri[], created = false) {
 		const folder = vscode.workspace.getWorkspaceFolder(file);
 		if (folder === undefined)
 			continue;
-		
+
 		const path = file.fsPath;
 		if (path.endsWith(".py") || path.endsWith(".pyi") || path.endsWith(".ipynb")) {
 			folders.add(folder.uri);
