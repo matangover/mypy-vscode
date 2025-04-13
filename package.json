@@ -48,6 +48,12 @@
                     "scope": "resource",
                     "markdownDescription": "Path to `dmypy` (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: `${workspaceFolder}` and `~` (home directory)."
                 },
+                "mypy.statusFile": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "resource",
+                    "markdownDescription": "Path to the status file used by dmypy. If empty, extension's workspace storage folder is used."
+                },
                 "mypy.runUsingActiveInterpreter": {
                     "type": "boolean",
                     "default": false,

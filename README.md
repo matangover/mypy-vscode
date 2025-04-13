@@ -42,6 +42,9 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.runUsingActiveInterpreter`: Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the `mypy.dmypyExecutable` setting. Note: your code is always checked against the active interpreter – this setting only controls the interpreter used to run dmypy itself.
 
+* `mypy.statusFile`: Status file to use by `dmypy`, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/mypy_daemon.html#cmdoption-dmypy-status-file). By default, the status file name is generated based on the worksapce id, workspace folder, and extension pid. Can be usefull if you want to reuse the same dmypy instance from other tools (pre-commit hooks for example).
+Be aware that when multiple VS Code windows are open on the same folder, it might cause some crashes or race conditions, since they will both use the same daemon.
+
 * `mypy.configFile`: Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html.
 
 * `mypy.extraArguments`: A list of extra command-line arguments to append to the `dmypy run` command. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html).
