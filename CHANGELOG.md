@@ -1,7 +1,11 @@
 # Change Log
 
+## 0.4.2
+- Add `mypy.statusFile` setting to allow reusing mypy daemon. PR [#104](https://github.com/matangover/mypy-vscode/pull/104) by @ivirabyan.
+
+
 ## 0.4.1
-- Add ability to set environment variables using `mypy.env` and `mypy.envFile`. PR [#101](https://github.com/matangover/mypy-vscode/pull/101) by @danlamanna
+- Add ability to set environment variables using `mypy.env` and `mypy.envFile`. PR [#101](https://github.com/matangover/mypy-vscode/pull/101) by @danlamanna.
 
 ## 0.4.0
 
