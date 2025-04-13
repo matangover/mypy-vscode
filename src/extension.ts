@@ -214,7 +214,7 @@ async function runDmypy(
 
 	let dmypyGlobalArgs: string[] = [];
 	let dmypyCommandArgs: string[] = [];
-	let statusFilePath: string = mypyConfig.get<string>('statusFile', "");
+	let statusFilePath: string = mypyConfig.get<string>('statusFile', '');
 
 	if (_context?.storageUri !== undefined) {
 		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});

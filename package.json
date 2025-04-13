@@ -48,12 +48,6 @@
                     "scope": "resource",
                     "markdownDescription": "Path to `dmypy` (the mypy daemon). Either a full path or just a name (which must exist in your PATH). You can use substitutions: `${workspaceFolder}` and `~` (home directory)."
                 },
-                "mypy.statusFile": {
-                    "type": "string",
-                    "default": "",
-                    "scope": "resource",
-                    "markdownDescription": "Path to the status file used by dmypy. If empty, extension's workspace storage folder is used."
-                },
                 "mypy.runUsingActiveInterpreter": {
                     "type": "boolean",
                     "default": false,
@@ -119,6 +113,12 @@
                     "default": "",
                     "scope": "resource",
                     "markdownDescription": "Path to an env file (relative to the workspace folder) containing environment variables to set when running mypy. Used in addition to the `env` setting. Ignored if the file doesn't exist."
+                },
+                "mypy.statusFile": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "resource",
+                    "markdownDescription": "Path to status file used by dmypy, relative to the workspace folder. By default, the status file is stored in a temporary location. Specify a name such as `.dmypy.json` to use a fixed location for the status file, so that you can reuse the daemon outside of VS Code. Reusing the daemon might cause issues, but can be useful for large codebases."
                 }
             }
         },

@@ -42,9 +42,6 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.runUsingActiveInterpreter`: Use the active Python interpreter (selected in the Python extension) to run dmypy itself, instead of the `mypy.dmypyExecutable` setting. Note: your code is always checked against the active interpreter – this setting only controls the interpreter used to run dmypy itself.
 
-* `mypy.statusFile`: Status file to use by `dmypy`, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/mypy_daemon.html#cmdoption-dmypy-status-file). By default, the status file name is generated based on the worksapce id, workspace folder, and extension pid. Can be usefull if you want to reuse the same dmypy instance from other tools (pre-commit hooks for example).
-Be aware that when multiple VS Code windows are open on the same folder, it might cause some crashes or race conditions, since they will both use the same daemon.
-
 * `mypy.configFile`: Mypy config file, relative to the workspace folder. If empty, search in the default locations. See https://mypy.readthedocs.io/en/latest/config_file.html.
 
 * `mypy.extraArguments`: A list of extra command-line arguments to append to the `dmypy run` command. For a list of options, see [mypy's documentation](https://mypy.readthedocs.io/en/stable/command_line.html).
@@ -56,6 +53,8 @@ Be aware that when multiple VS Code windows are open on the same folder, it migh
 * `mypy.envFile`: Path to an env file (relative to the workspace folder) containing environment variables to set when running mypy. Used in addition to the `env` setting. Ignored if the file doesn't exist.
 
 * `mypy.debugLogging`: Enable debug logging for the extension. (Reload the window after changing this setting.)
+
+* `mypy.statusFile`: Path to status file used by dmypy, relative to the workspace folder. By default, the status file is stored in a temporary location. Specify a name such as `.dmypy.json` to use a fixed location for the status file, so that you can reuse the daemon outside of VS Code. Reusing the daemon might cause issues, but can be useful for large codebases.
 
 ## Experimental: Type checking in notebooks
 
