@@ -56,6 +56,8 @@ To configure the mypy-vscode extension, use the following VS Code settings:
 
 * `mypy.statusFile`: Path to status file used by dmypy, relative to the workspace folder. By default, the status file is stored in a temporary location. Specify a name such as `.dmypy.json` to use a fixed location for the status file, so that you can reuse the daemon outside of VS Code. Reusing the daemon might cause issues, but can be useful for large codebases.
 
+* `mypy.currentWorkingDirectory`: Current working directory to invoke mypy from, relative to the workspace folder. Defaults to the workspace folder.
+
 ## Experimental: Type checking in notebooks
 
 This extension can also run mypy on Python code cells in Jupyter notebooks. To enable this feature, set `mypy.checkNotebooks` to `true`. Notebooks are type checked when they're opened or saved.
