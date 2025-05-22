@@ -215,6 +215,7 @@ async function runDmypy(
 	let dmypyGlobalArgs: string[] = [];
 	let dmypyCommandArgs: string[] = [];
 	let statusFilePath: string = mypyConfig.get<string>('statusFile', '');
+	const currentWorkingDirectory: string = path.join(folder.fsPath, mypyConfig.get<string>('currentWorkingDirectory', '.'));
 
 	if (_context?.storageUri !== undefined) {
 		fs.mkdirSync(_context.storageUri.fsPath, {recursive: true});
@@ -252,13 +253,13 @@ async function runDmypy(
 		args.push("--", ...mypyArgs);
 	}
 	const command = [executable, ...args].map(quote).join(" ");
-	output(`Running dmypy in folder ${folder.fsPath}\n${command}`, currentCheck);
+	output(`Running dmypy in folder ${folder.fsPath} using ${currentWorkingDirectory} as current working directory\n${command}`, currentCheck);
 	try {
 		const result = await spawn(
 			executable,
 			args,
 			{
-				cwd: folder.fsPath,
+				cwd: currentWorkingDirectory,
 				capture: ['stdout', 'stderr'],
 				successfulExitCodes,
 				env: envVars,
@@ -514,7 +515,7 @@ async function checkNotebookInternal(notebook: vscode.NotebookDocument, folder: 
 	if (executable === undefined) {
 		return;
 	}
-	let mypyArgs = getMypyArgs([], mypyConfig, currentCheck)
+	let mypyArgs = getMypyArgs(folder, [], mypyConfig, currentCheck)
 	if (activeInterpreter) {
 		mypyArgs = ['--python-executable', activeInterpreter, ...mypyArgs];
 	}
@@ -701,7 +702,7 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	output(`Check folder: ${folder.fsPath}`, currentCheck);
 
 	let targets = mypyConfig.get<string[]>("targets", []);
-	const mypyArgs = getMypyArgs(targets, mypyConfig, currentCheck);
+	const mypyArgs = getMypyArgs(folder, targets, mypyConfig, currentCheck);
 	const result = await runDmypy(
 		folder,
 		'run',
@@ -729,10 +730,18 @@ async function checkWorkspaceInternal(folder: vscode.Uri) {
 	}
 }
 
-function getMypyArgs(targets: string[], mypyConfig: vscode.WorkspaceConfiguration, currentCheck: number) {
-	const mypyArgs = [...targets, ...mypyFormatArgs];
-	const configFile = mypyConfig.get<string>("configFile");
+function getMypyArgs(folder: vscode.Uri, targets: string[], mypyConfig: vscode.WorkspaceConfiguration, currentCheck: number) {
+	// Use absolute target paths so targets are relative to workspace root
+	// rather than current working directory.
+	const absTargets = targets.map(target => !path.isAbsolute(target) ? path.join(folder.fsPath, target) : target);
+	const mypyArgs = [...absTargets, ...mypyFormatArgs];
+	let configFile = mypyConfig.get<string>("configFile");
 	if (configFile) {
+		// Use absolute config path so configFile is relative to workspace root
+		// rather than current working directory.
+		if (!path.isAbsolute(configFile)) {
+			configFile = path.join(folder.fsPath, configFile);
+		}
 		output(`Using config file: ${configFile}`, currentCheck);
 		mypyArgs.push('--config-file', configFile);
 	}
